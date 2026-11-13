@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Trossachs Wildfire Coordination</title>
+  
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body, html { height: 100%; width: 100%; overflow: hidden; background: #1a1a1a; }
+
+    /* Map Container */
+    #map { height: 100vh; width: 100vw; z-index: 1; }
+
+    /* Top HUD: Weather & Role Filter */
+    .top-hud {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      right: 12px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none;
+    }
+
+    .hud-card {
+      background: rgba(255, 255, 255, 0.96);
+      border-radius: 10px;
+      padding: 10px 14px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+      pointer-events: auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.85rem;
+    }
+
+    .weather-banner {
+      border-left: 5px solid #f59e0b;
+      font-weight: 600;
+      color: #1f2937;
+    }
+
+    .filter-bar select {
+      width: 100%;
+      padding: 8px;
+      border-radius: 6px;
+      border: 1px solid #d1d5db;
+      font-weight: 600;
+      font-size: 0.9rem;
+      background: #f9fafb;
+    }
+
+    /* Collapsible Right Edge Timeline Tab (Mobile Design) */
+    .timeline-tab {
+      position: fixed;
+      right: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 1000;
+      background: #111827;
+      color: #ffffff;
+      padding: 16px 10px;
+      border-radius: 12px 0 0 12px;
+      writing-mode: vertical-rl;
+      text-orientation: mixed;
+      font-weight: 700;
+      letter-spacing: 1px;
+      cursor: pointer;
+      box-shadow: -3px 0 10px rgba(0,0,0,0.3);
+      border: none;
+    }
+
+    /* Slide-over Timeline Drawer */
+    .timeline-drawer {
+      position: fixed;
+      top: 0;
+      right: -100%;
+      width: 88%;
+      max-width: 380px;
+      height: 100vh;
+      background: #f3f4f6;
+      z-index: 2000;
+      transition: right 0.25s ease-out;
+      display: flex;
+      flex-direction: column;
+      box-shadow: -5px 0 20px rgba(0,0,0,0.4);
+    }
+
+    .timeline-drawer.open { right: 0; }
+
+    .drawer-header {
+      background: #111827;
+      color: white;
+      padding: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .drawer-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Timeline Event Cards (SSEN Power Track / Wireframe Color Coding) */
+    .event-card {
+      background: white;
+      border-radius: 8px;
+      padding: 12px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.08);
+      border-left: 6px solid #6b7280;
+      cursor: pointer;
+    }
+    .event-card.Critical { border-left-color: #dc2626; background: #fef2f2; }
+    .event-card.High { border-left-color: #f97316; }
+    .event-card.Moderate { border-left-color: #eab308; }
+    .event-card.Low { border-left-color: #3b82f6; }
+    .event-card.Pending { border-left-color: #eab308; background: #fefce8; }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .badge.Critical { background: #dc2626; color: white; }
+    .badge.High { background: #f97316; color: white; }
+    .badge.Moderate { background: #eab308; color: #111; }
+    .badge.Low { background: #3b82f6; color: white; }
+
+    /* Bottom Quick-Add FAB */
+    .fab-add {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1000;
+      background: #dc2626;
+      color: white;
+      border: none;
+      padding: 14px 28px;
+      border-radius: 50px;
+      font-size: 1rem;
+      font-weight: 700;
+      box-shadow: 0 6px 16px rgba(220, 38, 38, 0.45);
+      cursor: pointer;
+    }
+
+    /* Modals (Quick Add & Event Details) */
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.65);
+      z-index: 3000;
+      align-items: flex-end;
+    }
+    .modal-backdrop.active { display: flex; }
+
+    .modal-sheet {
+      background: white;
+      width: 100%;
+      max-height: 90vh;
+      border-radius: 16px 16px 0 0;
+      padding: 20px;
+      overflow-y: auto;
+    }
+
+    .form-group { margin-bottom: 12px; }
+    .form-group label { display: block; font-size: 0.85rem; font-weight: 700; margin-bottom: 4px; color: #374151; }
+    .form-group input, .form-group select, .form-group textarea {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 0.95rem;
+    }
+
+    .radio-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+    .radio-btn {
+      text-align: center;
+      padding: 8px 4px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .radio-btn.selected { background: #111827; color: white; border-color: #111827; }
+
+    .btn-primary {
+      width: 100%;
+      padding: 12px;
+      background: #dc2626;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 1rem;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+    .btn-secondary {
+      width: 100%;
+      padding: 10px;
+      background: #e5e7eb;
+      color: #111827;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      margin-top: 8px;
+      cursor: pointer;
+    }
+
+    /* Custom Map Pins */
+    .custom-pin {
+      border-radius: 50%;
+      border: 3px solid white;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top HUD -->
+  <div class="top-hud">
+    <div class="hud-card weather-banner" id="weatherBanner">
+      <span>Loading weather warnings...</span>
+    </div>
+    <div class="hud-card filter-bar">
+      <select id="deptFilter" onchange="renderAll()">
+        <option value="ALL">All Agencies (Global View)</option>
+        <option value="Scottish Fire and Rescue Service">Scottish Fire & Rescue Service</option>
+        <option value="National Park Rangers">National Park Rangers</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Interactive Map -->
+  <div id="map"></div>
+
+  <!-- Collapsible Timeline Tab -->
+  <button class="timeline-tab" onclick="toggleDrawer(true)">TIMELINE (<span id="eventCount">0</span>)</button>
+
+  <!-- Slide-over Timeline Drawer -->
+  <div class="timeline-drawer" id="timelineDrawer">
+    <div class="drawer-header">
+      <h3>Live Incident Timeline</h3>
+      <button onclick="toggleDrawer(false)" style="background:none;border:none;color:white;font-size:1.2rem;cursor:pointer;">✕</button>
+    </div>
+    <div class="drawer-content" id="timelineList"></div>
+  </div>
+
+  <!-- Quick Add Button -->
+  <button class="fab-add" onclick="openQuickAdd()">+ QUICK ADD EVENT</button>
+
+  <!-- Quick Add Modal -->
+  <div class="modal-backdrop" id="quickAddModal">
+    <div class="modal-sheet">
+      <h3 style="margin-bottom:12px;">Report Incident / Update</h3>
+      <form id="quickAddForm" onsubmit="submitQuickAdd(event)">
+        <div class="form-group">
+          <label>Agency / Department</label>
+          <select id="qaDept" required>
+            <option value="Scottish Fire and Rescue Service">Scottish Fire and Rescue Service</option>
+            <option value="National Park Rangers">National Park Rangers</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Your Name & Role</label>
+          <input type="text" id="qaAuthor" placeholder="e.g., Ranger Alex (Field Patrol)" required />
+        </div>
+        <div class="form-group">
+          <label>Incident Title</label>
+          <input type="text" id="qaTitle" placeholder="e.g., Smoke spotted near Ben A'an" required />
+        </div>
+        <div class="form-group">
+          <label>Location / Sector</label>
+          <input type="text" id="qaLocation" placeholder="e.g., Loch Achray North" required />
+        </div>
+        <div class="form-group">
+          <label>Severity Level</label>
+          <div class="radio-row" id="severityGroup">
+            <div class="radio-btn" onclick="selectSeverity('Low', this)">Low</div>
+            <div class="radio-btn" onclick="selectSeverity('Moderate', this)">Moderate</div>
+            <div class="radio-btn selected" onclick="selectSeverity('High', this)">High</div>
+            <div class="radio-btn" onclick="selectSeverity('Critical', this)">Critical</div>
+          </div>
+          <input type="hidden" id="qaSeverity" value="High" />
+        </div>
+        <div class="form-group">
+          <label>Details</label>
+          <textarea id="qaDesc" rows="2" placeholder="Wind direction, terrain, immediate action needed..."></textarea>
+        </div>
+        <button type="submit" class="btn-primary">Submit to Live Map</button>
+        <button type="button" class="btn-secondary" onclick="closeModals()">Cancel</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Event Details & Action Modal -->
+  <div class="modal-backdrop" id="detailsModal">
+    <div class="modal-sheet" id="detailsContent"></div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <script>
+    const API_URL = 'http://localhost:3000';
+    const socket = io(API_URL);
+
+    // Initialize Map centered on Loch Lomond & The Trossachs
+    const map = L.map('map', { zoomControl: false }).setView([56.21, -4.32], 11);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    let markersLayer = L.layerGroup().addTo(map);
+    let appState = { events: [], resources: [], weather: {} };
+
+    // Socket.io Real-time Listeners
+    socket.on('init_state', (data) => {
+      appState = data;
+      renderWeather();
+      renderAll();
+    });
+
+    socket.on('timeline_updated', (events) => {
+      appState.events = events;
+      renderAll();
+    });
+
+    function renderWeather() {
+      const w = appState.weather;
+      if (!w || !w.warning) return;
+      document.getElementById('weatherBanner').innerHTML = `
+        <span>⚠️ ${w.warning}</span>
+        <span>${w.wind} | ${w.temperature}</span>
+      `;
+    }
+
+    function getPinColor(severity) {
+      if (severity === 'Critical') return '#dc2626';
+      if (severity === 'High') return '#f97316';
+      if (severity === 'Moderate') return '#eab308';
+      return '#3b82f6';
+    }
+
+    function renderAll() {
+      const filter = document.getElementById('deptFilter').value;
+      const filteredEvents = filter === 'ALL' 
+        ? appState.events 
+        : appState.events.filter(e => e.department === filter);
+
+      document.getElementById('eventCount').innerText = filteredEvents.length;
+      markersLayer.clearLayers();
+
+      // Plot Event Pins
+      filteredEvents.forEach(evt => {
+        const color = getPinColor(evt.severity);
+        const icon = L.divIcon({
+          className: '',
+          html: `<div class="custom-pin" style="background:${color};width:22px;height:22px;"></div>`,
+          iconSize: [22, 22],
+          iconAnchor: [11, 11]
+        });
+
+        const marker = L.marker([evt.location.lat, evt.location.lng], { icon })
+          .addTo(markersLayer)
+          .on('click', () => openEventDetails(evt.id));
+      });
+
+      // Plot Deployed Resources
+      (appState.resources || []).forEach(res => {
+        if (filter !== 'ALL' && res.department !== filter) return;
+        const icon = L.divIcon({
+          className: '',
+          html: `<div style="background:#111827;color:white;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:bold;white-space:nowrap;border:1px solid white;">🚒 ${res.name}</div>`,
+          iconSize: [80, 20]
+        });
+        L.marker([res.lat, res.lng], { icon }).addTo(markersLayer);
+      });
+
+      // Render Timeline Cards
+      const listEl = document.getElementById('timelineList');
+      listEl.innerHTML = filteredEvents.map(evt => {
+        const timeStr = new Date(evt.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        return `
+          <div class="event-card ${evt.severity}" onclick="openEventDetails('${evt.id}')">
+            <span class="badge ${evt.severity}">${evt.severity} • ${evt.status}</span>
+            <h4 style="margin:4px 0;color:#111827;">${evt.title}</h4>
+            <p style="font-size:0.8rem;color:#4b5563;">📍 ${evt.location.name} (${evt.location.sector})</p>
+            <p style="font-size:0.75rem;color:#6b7280;margin-top:6px;">
+              <strong>${evt.department}</strong> • ${evt.authorName} • ${timeStr}
+            </p>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function openEventDetails(id) {
+      const evt = appState.events.find(e => e.id === id);
+      if (!evt) return;
+
+      const updatesHtml = (evt.updates || []).map(u => `
+        <div style="background:#f3f4f6;padding:8px;border-radius:6px;margin-top:6px;font-size:0.82rem;">
+          <strong>${u.author} (${u.department})</strong>: ${u.text}
+          <div style="font-size:0.7rem;color:#6b7280;">${new Date(u.timestamp).toLocaleTimeString()}</div>
+        </div>
+      `).join('');
+
+      document.getElementById('detailsContent').innerHTML = `
+        <span class="badge ${evt.severity}">${evt.severity} • ${evt.status}</span>
+        <h3 style="margin:6px 0;">${evt.title}</h3>
+        <p style="font-size:0.85rem;color:#374151;margin-bottom:8px;">${evt.description}</p>
+        <div style="font-size:0.8rem;color:#4b5563;background:#f9fafb;padding:10px;border-radius:8px;margin-bottom:12px;">
+          <div><strong>Location:</strong> ${evt.location.name} (${evt.location.sector})</div>
+          <div><strong>Reported by:</strong> ${evt.authorName} (${evt.authorRole})</div>
+          <div><strong>Agency:</strong> ${evt.department}</div>
+          <div><strong>Time:</strong> ${new Date(evt.timestamp).toLocaleString()}</div>
+        </div>
+
+        <h4>Coordination & Audit Log</h4>
+        <div style="max-height:150px;overflow-y:auto;margin-bottom:12px;">
+          ${updatesHtml || '<p style="font-size:0.8rem;color:#9ca3af;">No updates logged yet.</p>'}
+        </div>
+
+        <form onsubmit="submitEventUpdate(event, '${evt.id}')">
+          <div class="form-group">
+            <label>Update Status</label>
+            <select id="updStatus">
+              <option value="Active" ${evt.status === 'Active' ? 'selected' : ''}>Active</option>
+              <option value="Decision Pending" ${evt.status === 'Decision Pending' ? 'selected' : ''}>Decision Pending</option>
+              <option value="Resolved" ${evt.status === 'Resolved' ? 'selected' : ''}>Resolved</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Add Action Note</label>
+            <input type="text" id="updText" placeholder="e.g., Fire crew dispatched / Trail closed" />
+          </div>
+          <button type="submit" class="btn-primary">Log Update</button>
+          <button type="button" class="btn-secondary" onclick="closeModals()">Close</button>
+        </form>
+      `;
+      document.getElementById('detailsModal').classList.add('active');
+    }
+
+    async function submitQuickAdd(e) {
+      e.preventDefault();
+      // Slight coordinate jitter around Trossachs center for demo map visibility
+      const center = map.getCenter();
+      const payload = {
+        department: document.getElementById('qaDept').value,
+        authorName: document.getElementById('qaAuthor').value,
+        title: document.getElementById('qaTitle').value,
+        locationName: document.getElementById('qaLocation').value,
+        severity: document.getElementById('qaSeverity').value,
+        description: document.getElementById('qaDesc').value,
+        lat: center.lat + (Math.random() - 0.5) * 0.03,
+        lng: center.lng + (Math.random() - 0.5) * 0.03
+      };
+
+      await fetch(`${API_URL}/api/events`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      document.getElementById('quickAddForm').reset();
+      closeModals();
+    }
+
+    async function submitEventUpdate(e, id) {
+      e.preventDefault();
+      const payload = {
+        status: document.getElementById('updStatus').value,
+        updateText: document.getElementById('updText').value,
+        author: 'Field Operator',
+        department: document.getElementById('deptFilter').value === 'ALL' ? 'Multi-Agency' : document.getElementById('deptFilter').value
+      };
+
+      await fetch(`${API_URL}/api/events/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      closeModals();
+    }
+
+    function toggleDrawer(open) {
+      document.getElementById('timelineDrawer').classList.toggle('open', open);
+    }
+
+    function openQuickAdd() {
+      document.getElementById('quickAddModal').classList.add('active');
+    }
+
+    function closeModals() {
+      document.querySelectorAll('.modal-backdrop').forEach(m => m.classList.remove('active'));
+    }
+
+    function selectSeverity(val, el) {
+      document.getElementById('qaSeverity').value = val;
+      document.querySelectorAll('.radio-btn').forEach(b => b.classList.remove('selected'));
+      el.classList.add('selected');
+    }
+  </script>
+</body>
+</html>
