@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fire Responder · Wildfire visitor evacuation</title>
+
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: #f3f4f6;
+      color: #111827;
+      font: 16px/1.5 system-ui, sans-serif;
+    }
+
+    main {
+      max-width: 600px;
+      margin: auto;
+      padding: 12px 12px 32px;
+    }
+
+    header, section {
+      padding: 16px;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      background: white;
+    }
+
+    header { background: #111827; color: white; }
+    header p { color: #e5e7eb; }
+    section { margin-top: 12px; }
+    h1, h2, p { margin: 0 0 8px; }
+    h1 { font-size: 1.5rem; }
+    h2 { font-size: 1.125rem; }
+    .muted { color: #4b5563; font-size: .875rem; }
+    .stack { display: grid; gap: 10px; }
+
+    a, button, textarea { font: inherit; }
+
+    a, button {
+      min-height: 44px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      padding: 9px 12px;
+      background: white;
+      color: #111827;
+      font-weight: 650;
+    }
+
+    a {
+      display: inline-flex;
+      align-items: center;
+      text-decoration: none;
+    }
+
+    button { cursor: pointer; }
+    button:disabled { opacity: .65; cursor: wait; }
+
+    .card {
+      display: grid;
+      text-align: left;
+      overflow-wrap: anywhere;
+    }
+
+    .card[aria-pressed="true"] {
+      border-left: 4px solid #111827;
+      background: #f9fafb;
+    }
+
+    .primary {
+      background: #dc2626;
+      border-color: #dc2626;
+      color: white;
+    }
+
+    label { display: grid; gap: 4px; font-weight: 600; }
+
+    textarea {
+      width: 100%;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      padding: 9px 12px;
+      resize: vertical;
+    }
+
+    :focus-visible { outline: 3px solid #2563eb; outline-offset: 2px; }
+    #details { overflow-wrap: anywhere; }
+    #description { white-space: pre-wrap; }
+    #activity { padding-left: 20px; }
+    #activity li { margin-bottom: 6px; }
+  </style>
+</head>
+
+<body>
+  <main>
+    <header>
+      <h1>Fire Responder</h1>
+      <p>Wildfire visitor evacuation</p>
+      <p id="connection" role="status">Connecting…</p>
+    </header>
+
+    <section aria-labelledby="incident-heading">
+      <h2 id="incident-heading">Shared incidents</h2>
+      <a href="./index.html?from=responder">Open shared map</a>
+      <p id="list-message" class="muted" role="status">Loading incidents…</p>
+      <div id="incidents" class="stack"></div>
+    </section>
+
+    <section id="details" aria-labelledby="title" hidden>
+      <h2 id="title"></h2>
+      <p id="summary"></p>
+      <p id="source" class="muted"></p>
+      <p id="description"></p>
+
+      <h2>Activity log</h2>
+      <ul id="activity"></ul>
+
+      <form id="progress" class="stack">
+        <label>
+          Progress update
+          <textarea
+            name="note"
+            rows="3"
+            required
+            placeholder="Describe the current situation or outcome"
+          ></textarea>
+        </label>
+        <button type="submit" class="primary">Share update</button>
+      </form>
+
+      <p id="feedback" role="status"></p>
+    </section>
+  </main>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const get = id => document.getElementById(id);
+    const form = get('progress');
+    const feedback = get('feedback');
+
+    let incidents = [];
+    let selectedId = null;
+    let revision = 0;
+
+    function appendText(parent, tag, value, className = '') {
+      const element = document.createElement(tag);
+      element.className = className;
+      element.textContent = value;
+      parent.append(element);
+    }
+
+    function formatTime(timestamp) {
+      return new Date(timestamp).toLocaleTimeString('en-GB', {
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
+
+    function render() {
+      const list = get('incidents');
+      const selected = incidents.find(event => event.id === selectedId);
+      const activeId = document.activeElement?.dataset.eventId;
+
+      list.replaceChildren();
+      get('list-message').textContent =
+        incidents.length ? '' : 'No incidents reported.';
+
+      for (const event of incidents) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'card';
+        button.dataset.eventId = event.id;
+        button.setAttribute('aria-pressed', String(event.id === selectedId));
+
+        appendText(button, 'strong', event.title);
+        appendText(button, 'span', event.location.name, 'muted');
+        appendText(button, 'span', `${event.severity} · ${event.status}`, 'muted');
+
+        button.addEventListener('click', () => {
+          if (event.id !== selectedId) {
+            form.reset();
+            feedback.textContent = '';
+          }
+
+          selectedId = event.id;
+          render();
+        });
+
+        list.append(button);
+        if (event.id === activeId) button.focus({ preventScroll: true });
+      }
+
+      get('details').hidden = !selected;
+      if (!selected) return;
+
+      get('title').textContent = selected.title;
+      get('summary').textContent =
+        `${selected.location.name} · ${selected.severity} · ${selected.status}`;
+      get('source').textContent =
+        `Reported by ${selected.authorName} at ${formatTime(selected.timestamp)}`;
+      get('description').textContent = selected.description || '';
+
+      const activity = get('activity');
+      const updates = selected.updates || [];
+      activity.replaceChildren();
+
+      if (!updates.length) appendText(activity, 'li', 'No updates logged yet.');
+
+      for (const update of updates) {
+        appendText(
+          activity,
+          'li',
+          `${formatTime(update.timestamp)} · ${update.author} · ${update.text}`
+        );
+      }
+    }
+
+    function receiveEvents(events) {
+      revision += 1;
+      incidents = events;
+      render();
+    }
+
+    async function loadIncidents() {
+      const before = revision;
+
+      try {
+        const response = await fetch('/api/events', { cache: 'no-store' });
+        if (!response.ok) throw new Error('Could not load incidents');
+
+        const events = await response.json();
+        if (revision === before) receiveEvents(events);
+      } catch {
+        if (revision === before) {
+          get('list-message').textContent =
+            'Could not load incidents. Check the project server.';
+        }
+      }
+    }
+
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+
+      const id = selectedId;
+      const note = form.elements.note.value.trim();
+
+      if (!id) return;
+
+      if (!note) {
+        feedback.textContent = 'Enter a progress update.';
+        return;
+      }
+
+      const button = form.querySelector('button');
+      button.disabled = true;
+      feedback.textContent = 'Sharing update…';
+
+      try {
+        const response = await fetch(`/api/events/${encodeURIComponent(id)}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            updateText: note,
+            author: 'Fire Responder',
+            department: 'Scottish Fire and Rescue Service'
+          })
+        });
+
+        if (!response.ok) throw new Error('Update rejected');
+
+        if (selectedId === id) {
+          if (form.elements.note.value.trim() === note) form.reset();
+          feedback.textContent = 'Update shared.';
+        }
+
+        await loadIncidents();
+      } catch {
+        if (selectedId === id) {
+          feedback.textContent = 'Could not confirm the update.';
+        }
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    if (typeof io === 'function') {
+      const socket = io();
+
+      socket.on('connect', () => {
+        get('connection').textContent = 'Live updates connected';
+      });
+
+      socket.on('init_state', state => receiveEvents(state.events || []));
+      socket.on('timeline_updated', receiveEvents);
+
+      socket.on('disconnect', () => {
+        get('connection').textContent = 'Live updates disconnected';
+      });
+
+      socket.on('connect_error', () => {
+        get('connection').textContent = 'Could not connect to live updates';
+      });
+    } else {
+      get('connection').textContent = 'Live updates unavailable';
+    }
+
+    loadIncidents();
+  </script>
+</body>
+</html>

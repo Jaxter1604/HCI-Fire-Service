@@ -231,6 +231,24 @@
       border: 3px solid white;
       box-shadow: 0 2px 6px rgba(0,0,0,0.5);
     }
+    #back-to-role:not([hidden]) {
+      display: inline-grid;
+      place-items: center;
+      flex: 0 0 44px;
+      width: 44px;
+      height: 44px;
+      margin-right: 8px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      background: #fff;
+      color: #111827;
+      font-size: 20px;
+      text-decoration: none;
+    }
+
+    #deptFilter {
+      min-width: 0;
+    }
   </style>
 </head>
 <body>
@@ -241,6 +259,7 @@
       <span>Loading weather warnings...</span>
     </div>
     <div class="hud-card filter-bar">
+      <a id="back-to-role" hidden>←</a>
       <select id="deptFilter" onchange="renderAll()">
         <option value="ALL">All Agencies (Global View)</option>
         <option value="Scottish Fire and Rescue Service">Scottish Fire & Rescue Service</option>
@@ -520,5 +539,21 @@
       el.classList.add('selected');
     }
   </script>
+  <script>
+    const mapSource = new URLSearchParams(location.search).get('from');
+    const backToRole = document.getElementById('back-to-role');
+
+    if (mapSource === 'coordinator' || mapSource === 'responder') {
+      const isCoordinator = mapSource === 'coordinator';
+      const label = isCoordinator
+        ? 'Back to Coordinator'
+        : 'Back to Fire Responder';
+
+      backToRole.href = isCoordinator ? './coordinator.html' : './responder.html';
+      backToRole.setAttribute('aria-label', label);
+      backToRole.title = label;
+      backToRole.hidden = false;
+    }
+</script>
 </body>
 </html>

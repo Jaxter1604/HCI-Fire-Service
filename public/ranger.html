@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Park Ranger · Wildfire evacuation</title>
+
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #111827;
+      --muted: #4b5563;
+      --background: #f3f4f6;
+      --border: #d1d5db;
+      --action: #dc2626;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--background);
+      color: var(--ink);
+      font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    main {
+      max-width: 580px;
+      margin: 0 auto;
+      padding: 16px 16px 32px;
+    }
+
+    header {
+      padding: 18px 20px;
+      border-radius: 12px;
+      background: var(--ink);
+      color: #e5e7eb;
+    }
+
+    header h1 {
+      margin: 0 0 2px;
+      color: #fff;
+      font-size: 1.5rem;
+      line-height: 1.2;
+    }
+
+    section {
+      margin-top: 14px;
+      padding: 18px;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      background: #fff;
+    }
+
+    section h2 {
+      margin: 0 0 14px;
+      font-size: 1.125rem;
+      line-height: 1.3;
+    }
+
+    form {
+      display: grid;
+      gap: 12px;
+    }
+
+    .field-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
+      gap: 12px;
+    }
+
+    label {
+      display: block;
+      color: #374151;
+      font-size: .875rem;
+      font-weight: 600;
+    }
+
+    input, select, button {
+      display: block;
+      width: 100%;
+      min-height: 44px;
+      padding: 9px 11px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font: inherit;
+      font-size: 1rem;
+    }
+
+    input, select {
+      margin-top: 4px;
+      background: #fff;
+      color: var(--ink);
+      font-weight: 400;
+    }
+
+    button[type="submit"] {
+      margin-top: 4px;
+      border-color: var(--action);
+      background: var(--action);
+      color: #fff;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    button[type="submit"]:hover:enabled { background: #b91c1c; }
+    button:disabled { opacity: .65; cursor: wait; }
+    :focus-visible { outline: 3px solid #2563eb; outline-offset: 2px; }
+
+    [role="status"] {
+      margin: 0;
+      color: var(--muted);
+      font-size: .875rem;
+    }
+
+    #feedback:not(:empty) { margin-top: 12px; }
+    #reports { display: grid; gap: 10px; }
+
+    article {
+      padding: 12px 14px;
+      border: 1px solid #e5e7eb;
+      border-left: 4px solid var(--ink);
+      border-radius: 8px;
+      background: #f9fafb;
+      overflow-wrap: anywhere;
+    }
+
+    article h3, article p { margin: 0 0 6px; }
+    article h3 { font-size: 1rem; }
+    article p { color: var(--muted); }
+    article h4 { margin: 12px 0 4px; font-size: .875rem; }
+    article ul { margin: 0; padding-left: 20px; }
+
+    @media (max-width: 420px) {
+      main { padding: 10px 10px 24px; }
+      header, section { padding: 14px; }
+      .field-row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+
+<body>
+  <main>
+    <header>
+      <h1>Park Ranger</h1>
+      Wildfire visitor evacuation
+    </header>
+
+    <section>
+      <h2>Report visitors needing assistance</h2>
+
+      <form id="report">
+        <label>
+          Your name
+          <input name="authorName" required>
+        </label>
+
+        <label>
+          Location
+          <input name="locationName" required>
+        </label>
+
+        <div class="field-row">
+          <label>
+            Number of visitors
+            <input name="visitors" type="number" min="1" required>
+          </label>
+
+          <label>
+            Injuries
+            <select name="injuries">
+              <option>No injuries reported</option>
+              <option>Injuries reported</option>
+              <option>Unknown</option>
+            </select>
+          </label>
+        </div>
+
+        <label>
+          Assistance needed
+          <input name="assistance" value="Guided evacuation" required>
+        </label>
+
+        <label>
+          Severity
+          <select name="severity">
+            <option>Low</option>
+            <option selected>Moderate</option>
+            <option>High</option>
+            <option>Critical</option>
+          </select>
+        </label>
+
+        <button type="submit">Submit report</button>
+      </form>
+
+      <p id="feedback" role="status"></p>
+    </section>
+
+    <section>
+      <h2>My reported incidents</h2>
+      <p id="tracking-status" role="status"></p>
+      <div id="reports"></div>
+    </section>
+  </main>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const form = document.getElementById('report');
+    const submit = form.querySelector('button');
+    const feedback = document.getElementById('feedback');
+    const trackingStatus = document.getElementById('tracking-status');
+    const reports = document.getElementById('reports');
+    const trackingKey = 'wildfire-ranger-reports';
+
+    let trackedIds = [];
+    let requestNumber = 0;
+
+    try {
+      const savedIds = JSON.parse(localStorage.getItem(trackingKey) || '[]');
+      if (Array.isArray(savedIds)) {
+        trackedIds = savedIds.filter(id => typeof id === 'string');
+      }
+    } catch {
+      // Tracking can continue in this tab if browser storage is unavailable.
+    }
+
+    function appendText(parent, tag, text) {
+      const element = document.createElement(tag);
+      element.textContent = text;
+      parent.append(element);
+      return element;
+    }
+
+    async function refreshReports() {
+      const request = ++requestNumber;
+
+      try {
+        const response = await fetch('/api/events', { cache: 'no-store' });
+        if (!response.ok) throw new Error('Could not load reports.');
+
+        const events = await response.json();
+        if (request !== requestNumber) return;
+
+        const trackedEvents = events.filter(event => trackedIds.includes(event.id));
+        reports.replaceChildren();
+
+        if (trackedEvents.length) {
+          trackingStatus.textContent = '';
+        } else if (trackedIds.length) {
+          trackingStatus.textContent = 'No tracked reports are available on the server.';
+        } else {
+          trackingStatus.textContent = 'No report submitted yet.';
+        }
+
+        for (const event of trackedEvents) {
+          const card = document.createElement('article');
+          appendText(card, 'h3', event.title);
+          appendText(card, 'p', `${event.location.name} · ${event.status}`);
+
+          if (event.description) {
+            appendText(card, 'p', event.description);
+          }
+
+          if (event.updates.length) {
+            appendText(card, 'h4', 'Activity log');
+            const log = appendText(card, 'ul', '');
+
+            for (const update of event.updates) {
+              const time = new Date(update.timestamp).toLocaleTimeString('en-GB', {
+                hour: '2-digit',
+                minute: '2-digit'
+              });
+              appendText(log, 'li', `${time} · ${update.author} · ${update.text}`);
+            }
+          }
+
+          reports.append(card);
+        }
+      } catch {
+        if (request === requestNumber) {
+          trackingStatus.textContent =
+            'Could not refresh reports. Check that the project server is running.';
+        }
+      }
+    }
+
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+
+      const fields = new FormData(form);
+      const authorName = fields.get('authorName').trim();
+      const locationName = fields.get('locationName').trim();
+      const assistance = fields.get('assistance').trim();
+
+      if (!authorName || !locationName || !assistance) {
+        feedback.textContent = 'Enter your name, the location and the assistance needed.';
+        return;
+      }
+
+      submit.disabled = true;
+      feedback.textContent = 'Submitting report…';
+
+      try {
+        const response = await fetch('/api/events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: 'Visitors needing assistance',
+            description: `Visitors: ${fields.get('visitors')}. ` +
+              `Injuries: ${fields.get('injuries')}. Assistance: ${assistance}.`,
+            locationName,
+            severity: fields.get('severity'),
+            department: 'National Park Rangers',
+            authorName,
+            authorRole: 'Park Ranger'
+          })
+        });
+
+        if (!response.ok) throw new Error('The server rejected the report.');
+
+        const saved = await response.json();
+        trackedIds.push(saved.id);
+
+        try {
+          localStorage.setItem(trackingKey, JSON.stringify(trackedIds));
+        } catch {
+          // The new report remains available in this tab.
+        }
+
+        feedback.textContent = `Report submitted · ${saved.id}`;
+        form.reset();
+        form.elements.authorName.value = authorName;
+        await refreshReports();
+      } catch {
+        feedback.textContent = 'Could not confirm submission. Check the server before trying again.';
+      } finally {
+        submit.disabled = false;
+      }
+    });
+
+    if (typeof io === 'function') {
+      const socket = io();
+      socket.on('connect', refreshReports);
+      socket.on('timeline_updated', refreshReports);
+    }
+
+    refreshReports();
+  </script>
+</body>
+</html>
