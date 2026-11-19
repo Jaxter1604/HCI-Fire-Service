@@ -126,6 +126,7 @@
     .event-card.Moderate { border-left-color: #eab308; }
     .event-card.Low { border-left-color: #3b82f6; }
     .event-card.Pending { border-left-color: #eab308; background: #fefce8; }
+    .event-card.Resolved { border-left-color: blue}
 
     .badge {
       display: inline-block;
@@ -140,6 +141,7 @@
     .badge.High { background: #f97316; color: white; }
     .badge.Moderate { background: #eab308; color: #111; }
     .badge.Low { background: #3b82f6; color: white; }
+    .badge.Resolved {background: blue; color: white; } 
 
     /* Bottom Quick-Add FAB */
     .fab-add {
@@ -507,7 +509,8 @@
       `;
     }
 
-    function getPinColor(severity) {
+    function getPinColor(severity, status) {
+      if (status === 'Resolved') return '#00f';
       if (severity === 'Critical') return '#dc2626';
       if (severity === 'High') return '#f97316';
       if (severity === 'Moderate') return '#eab308';
@@ -525,7 +528,7 @@
 
       // Plot Event Pins
       filteredEvents.forEach(evt => {
-        const color = getPinColor(evt.severity);
+        const color = getPinColor(evt.severity, evt.status);
         const icon = L.divIcon({
           className: '',
           html: `<div class="custom-pin" style="background:${color};width:22px;height:22px;"></div>`,
