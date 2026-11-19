@@ -249,6 +249,57 @@
     #deptFilter {
       min-width: 0;
     }
+
+    /* Center Crosshair / Reticle */
+    .center-reticle {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      width: 36px;
+      height: 36px;
+      transform: translate(-50%, -50%);
+      z-index: 900;
+      pointer-events: none; /* Lets touches/drags pass straight through to the Leaflet map */
+    }
+
+    .center-reticle::before,
+    .center-reticle::after {
+      content: "";
+      position: absolute;
+      background: rgba(17, 24, 39, 0.85);
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9);
+    }
+
+    /* Horizontal line */
+    .center-reticle::before {
+      top: 50%;
+      left: 0;
+      right: 0;
+      height: 2px;
+      transform: translateY(-50%);
+    }
+
+    /* Vertical line */
+    .center-reticle::after {
+      left: 50%;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      transform: translateX(-50%);
+    }
+
+    .reticle-dot {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #dc2626;
+      border: 2px solid #ffffff;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+    }
   </style>
 </head>
 <body>
@@ -266,6 +317,10 @@
         <option value="National Park Rangers">National Park Rangers</option>
       </select>
     </div>
+  </div>
+
+  <div class="center-reticle" aria-hidden="true">
+    <div class="reticle-dot"></div>
   </div>
 
   <!-- Interactive Map -->
@@ -479,20 +534,23 @@
 
     async function submitQuickAdd(e) {
       e.preventDefault();
-      // Slight coordinate jitter around Trossachs center for demo map visibility
       const center = map.getCenter();
+      const lat = Number(center.lat.toFixed(5));
+      const lng = Number(center.lng.toFixed(5));
+      const typedLocation = document.getElementById('qaLocation').value.trim();
+
       const payload = {
         department: document.getElementById('qaDept').value,
         authorName: document.getElementById('qaAuthor').value,
         title: document.getElementById('qaTitle').value,
-        locationName: document.getElementById('qaLocation').value,
+        locationName: typedLocation || `Pin (${lat}, ${lng})`,
         severity: document.getElementById('qaSeverity').value,
         description: document.getElementById('qaDesc').value,
-        lat: center.lat + (Math.random() - 0.5) * 0.03,
-        lng: center.lng + (Math.random() - 0.5) * 0.03
+        lat,
+        lng
       };
 
-      await fetch(`/api/events`, {
+      await fetch('/api/events', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
