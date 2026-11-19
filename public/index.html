@@ -300,21 +300,79 @@
       transform: translate(-50%, -50%);
       box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
     }
+
+    .resource-pin {
+      width: max-content !important;
+      height: auto !important;
+      background: #111827;
+      color: #ffffff;
+      padding: 3px 7px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+      border: 1px solid #ffffff;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+      transform: translate(-50%, -50%);
+    }
+
+/* Top Role Navigation Bar */
+.role-nav {
+      background: rgba(17, 24, 39, 0.96);
+      color: #ffffff;
+      border-radius: 10px;
+      padding: 6px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+      pointer-events: auto;
+      display: flex;
+    }
+
+    .role-nav[hidden] {
+      display: none;
+    }
+
+    .role-nav a {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 38px;
+      padding: 6px 12px;
+      border-radius: 7px;
+      background: #dc2626;
+      color: #ffffff;
+      text-decoration: none;
+      font-size: 0.85rem;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .role-nav a[hidden] {
+      display: none;
+    }
   </style>
 </head>
 <body>
 
   <!-- Top HUD -->
   <div class="top-hud">
+    <nav id="roleNav" class="role-nav" aria-label="Role view" hidden>
+      <a id="nav-responder" href="./responder.html" hidden>Open Responders View →</a>
+      <a id="nav-ranger" href="./ranger.html" hidden>Open Rangers View →</a>
+      <a id="nav-coordinator" href="./coordinator.html" hidden>Open Coordinator View →</a>
+    </nav>
+
     <div class="hud-card weather-banner" id="weatherBanner">
       <span>Loading weather warnings...</span>
     </div>
+
     <div class="hud-card filter-bar">
       <a id="back-to-role" hidden>←</a>
-      <select id="deptFilter" onchange="renderAll()">
+      <select id="deptFilter" onchange="handleFilterChange()">
         <option value="ALL">All Agencies (Global View)</option>
         <option value="Scottish Fire and Rescue Service">Scottish Fire & Rescue Service</option>
         <option value="National Park Rangers">National Park Rangers</option>
+        <option value="Coordinator">Coordinator</option>
       </select>
     </div>
   </div>
@@ -396,6 +454,29 @@
   <script>
     const socket = io();
 
+    function syncRoleNav() {
+      const filter = document.getElementById('deptFilter').value;
+      const mapByRole = {
+        'Scottish Fire and Rescue Service': 'nav-responder',
+        'National Park Rangers': 'nav-ranger',
+        'Coordinator': 'nav-coordinator'
+      };
+
+      const activeId = mapByRole[filter] || null;
+      const nav = document.getElementById('roleNav');
+      nav.hidden = !activeId;
+
+      ['nav-responder', 'nav-ranger', 'nav-coordinator'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.hidden = (id !== activeId);
+      });
+    }
+
+    function handleFilterChange() {
+      syncRoleNav();
+      renderAll();
+    }
+
     // Initialize Map centered on Loch Lomond & The Trossachs
     const map = L.map('map', { zoomControl: false }).setView([56.21, -4.32], 11);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -435,8 +516,8 @@
 
     function renderAll() {
       const filter = document.getElementById('deptFilter').value;
-      const filteredEvents = filter === 'ALL' 
-        ? appState.events 
+      const filteredEvents = (filter === 'ALL' || filter === 'Coordinator')
+        ? appState.events
         : appState.events.filter(e => e.department === filter);
 
       document.getElementById('eventCount').innerText = filteredEvents.length;
@@ -459,11 +540,11 @@
 
       // Plot Deployed Resources
       (appState.resources || []).forEach(res => {
-        if (filter !== 'ALL' && res.department !== filter) return;
+        if (filter !== 'ALL' && filter !== 'Coordinator' && res.department !== filter) return;
         const icon = L.divIcon({
-          className: '',
-          html: `<div style="background:#111827;color:white;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:bold;white-space:nowrap;border:1px solid white;">🚒 ${res.name}</div>`,
-          iconSize: [80, 20]
+          className: 'resource-pin',
+          html: `🚒 ${res.name}`,
+          iconSize: null
         });
         L.marker([res.lat, res.lng], { icon }).addTo(markersLayer);
       });
@@ -595,6 +676,8 @@
       document.querySelectorAll('.radio-btn').forEach(b => b.classList.remove('selected'));
       el.classList.add('selected');
     }
+
+    
   </script>
   <script>
     const mapSource = new URLSearchParams(location.search).get('from');
