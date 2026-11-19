@@ -136,30 +136,95 @@ app.post('/api/events', (req, res) => {
 
 // Update event / Add audit log / Change status
 app.put('/api/events/:id', (req, res) => {
-  const event = db.events.find(e => e.id === req.params.id);
+  const event = db.events.find(item => item.id === req.params.id);
   if (!event) {
     return res.status(404).json({ error: 'Event not found' });
   }
 
-  const { status, severity, updateText, author, department } = req.body;
+  const { status,severity,actionRequired,updateText,author,department} = req.body;
 
-  if (status) event.status = status;
-  if (severity) event.severity = severity;
+  const allowedStatuses = ['Active', 'Decision Pending', 'Resolved'];
+  const allowedSeverities = ['Low', 'Moderate', 'High', 'Critical'];
 
-  if (updateText) {
-    event.updates.push({
-      author: author || 'Field Coordinator',
-      department: department || 'Multi-Agency',
-      text: updateText,
-      timestamp: new Date().toISOString()
+  // Validate everything before changing the event.
+  if (status !== undefined && !allowedStatuses.includes(status)) {
+    return res.status(400).json({ error: 'Invalid incident status' });
+  }
+
+  if (severity !== undefined && !allowedSeverities.includes(severity)) {
+    return res.status(400).json({ error: 'Invalid severity' });
+  }
+
+  if (actionRequired !== undefined &&
+    typeof actionRequired !== 'string'
+  ) {
+    return res.status(400).json({
+      error: 'Action required must be text'
     });
   }
+
+  if (updateText !== undefined && typeof updateText !== 'string') {
+    return res.status(400).json({
+      error: 'Progress update must be text'
+    });
+  }
+
+  const changes = [];
+
+  if (status !== undefined && status !== event.status) {
+    changes.push(`Status: ${event.status} → ${status}`);
+    event.status = status;
+  }
+
+  if (severity !== undefined && severity !== event.severity) {
+    changes.push(`Severity: ${event.severity} → ${severity}`);
+    event.severity = severity;
+  }
+
+  if (actionRequired !== undefined) {
+    const nextAction = actionRequired.trim();
+    const previousAction = event.actionRequired || '';
+
+    if (nextAction !== previousAction) {
+      changes.push(
+        `Action required: ${previousAction || 'Not specified'} → ` +
+        `${nextAction || 'Not specified'}`
+      );
+
+      event.actionRequired = nextAction;
+    }
+  }
+
+  const note = (updateText || '').trim();
+
+  if (note) {
+    changes.push(`Progress update: ${note}`);
+  }
+
+  if (!changes.length) {
+    return res.status(400).json({
+      error: 'No changes or progress update provided.'
+    });
+  }
+
+  const timestamp = new Date().toISOString();
+
+  event.updatedAt = timestamp;
+  event.updates = event.updates || [];
+
+  event.updates.push({
+    author: author || 'Field Coordinator',
+    department: department || 'Multi-Agency',
+    text: changes.join('\n'),
+    timestamp
+  });
 
   io.emit('event_updated', event);
   io.emit('timeline_updated', db.events);
 
   res.json(event);
 });
+
 
 app.get('/api/sectors', (req, res) => {
   res.json(db.sectors);

@@ -90,6 +90,32 @@
     #description { white-space: pre-wrap; }
     #activity { padding-left: 20px; }
     #activity li { margin-bottom: 6px; }
+
+    #progress input,
+    #progress select,
+    #progress textarea {
+      box-sizing: border-box;
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      background: #fff;
+      color: #111827;
+      font: inherit;
+    }
+    
+    #progress label {
+      display: grid;
+      gap: 8px;
+      font-weight: 600;
+    }
+
+    #progress textarea {
+      resize: vertical;
+    }
+    #activity li {
+      white-space: pre-line;
+    }
   </style>
 </head>
 
@@ -118,17 +144,53 @@
       <ul id="activity"></ul>
 
       <form id="progress" class="stack">
+        <label for="responder-name">Your name</label>
+        <input
+        id="responder-name"
+        name="responderName"
+        type="text"
+        required
+        placeholder="Enter your name"
+        autocomplete="name"
+        >
         <label>
-          Progress update
-          <textarea
-            name="note"
-            rows="3"
-            required
-            placeholder="Describe the current situation or outcome"
-          ></textarea>
+          Incident status
+          <select name="status" required>
+            <option value="Active">Active</option>
+            <option value="Decision Pending">Decision Pending</option>
+            <option value="Resolved">Resolved</option>
+          </select>
         </label>
-        <button type="submit" class="primary">Share update</button>
-      </form>
+        
+        <label>
+          Severity
+          <select name="severity" required>
+            <option value="Low">Low</option>
+            <option value="Moderate">Moderate</option>
+            <option value="High">High</option>
+            <option value="Critical">Critical</option>
+          </select>
+        </label>
+        
+        <label>
+          Action required
+          <textarea
+          name="actionRequired"
+          rows="3"
+          placeholder="e.g. Guide visitors from the car park to the agreed assembly point"
+        ></textarea>
+      </label>
+      
+      <label>
+        Progress update / outcome
+        <textarea
+        name="note"
+        rows="3"
+        placeholder="Describe actions taken or the latest outcome"
+      ></textarea>
+    </label>
+    <button type="submit" class="primary">Share update</button>
+  </form>
 
       <p id="feedback" role="status"></p>
     </section>
@@ -143,6 +205,46 @@
     let incidents = [];
     let selectedId = null;
     let revision = 0;
+    let saving = false;
+    let formBaseline = {};
+    
+    const editableFields = [
+      'status',
+      'severity',
+      'actionRequired'
+    ];
+    
+    function incidentFieldValue(event, field) {
+      return event[field] || '';
+    }
+    
+    function fillUpdateForm(event) {
+      formBaseline = {};
+      
+      for (const field of editableFields) {
+        const value = incidentFieldValue(event, field);
+        
+        form.elements[field].value = value;
+        formBaseline[field] = value;
+      }
+      
+      form.elements.note.value = '';
+    }
+
+    function syncUpdateForm(event) {
+      if (saving) return;
+      
+      for (const field of editableFields) {
+        const input = form.elements[field];
+        const latestValue = incidentFieldValue(event, field);
+
+      // Update only fields the user has not changed.
+      if (input.value === formBaseline[field]) {
+        input.value = latestValue;
+        formBaseline[field] = latestValue;
+      }
+    }
+  }
 
     function appendText(parent, tag, value, className = '') {
       const element = document.createElement(tag);
@@ -179,15 +281,18 @@
         appendText(button, 'span', `${event.severity} · ${event.status}`, 'muted');
 
         button.addEventListener('click', () => {
-          if (event.id !== selectedId) {
-            form.reset();
-            feedback.textContent = '';
-          }
-
+          if (saving) return;
+          const changedSelection = event.id !== selectedId;
+          
           selectedId = event.id;
           render();
+          
+          if (changedSelection) {
+            fillUpdateForm(event);
+            feedback.textContent = '';
+          }
         });
-
+        
         list.append(button);
         if (event.id === activeId) button.focus({ preventScroll: true });
       }
@@ -220,6 +325,12 @@
     function receiveEvents(events) {
       revision += 1;
       incidents = events;
+      
+      const selected = incidents.find(event => event.id === selectedId);
+      
+      if (selected) {
+        syncUpdateForm(selected);
+      }
       render();
     }
 
@@ -242,45 +353,91 @@
 
     form.addEventListener('submit', async event => {
       event.preventDefault();
-
+      
+      if (saving) return;
       const id = selectedId;
-      const note = form.elements.note.value.trim();
-
       if (!id) return;
-
-      if (!note) {
-        feedback.textContent = 'Enter a progress update.';
+      
+      const authorName =
+      document.getElementById('responder-name').value.trim();
+      
+      if (!authorName) {
+        feedback.textContent = 'Enter your name before sharing an update.';
+        document.getElementById('responder-name').focus();
         return;
       }
-
-      const button = form.querySelector('button');
-      button.disabled = true;
+      
+      const payload = {
+        author: authorName,
+        department: 'Scottish Fire and Rescue Service'
+      };
+      
+      let hasChanges = false;
+      
+      for (const field of editableFields) {
+        const value = field === 'actionRequired'
+        ? form.elements[field].value.trim()
+        : form.elements[field].value;
+        
+        if (value !== formBaseline[field]) {
+          payload[field] = value;
+          hasChanges = true;
+        }
+      }
+      
+      const note = form.elements.note.value.trim();
+      
+      if (note) {
+        payload.updateText = note;
+        hasChanges = true;
+      }
+      
+      if (!hasChanges) {
+        feedback.textContent = 'Make a change or enter a progress update.';
+        return;
+      }
+      
+      const button = form.querySelector('button[type="submit"]');
+      const controls = Array.from(form.elements);
+      
+      saving = true;
+      controls.forEach(control => {
+        control.disabled = true;
+      });
+      
       feedback.textContent = 'Sharing update…';
-
+      
       try {
-        const response = await fetch(`/api/events/${encodeURIComponent(id)}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            updateText: note,
-            author: 'Fire Responder',
-            department: 'Scottish Fire and Rescue Service'
-          })
-        });
-
-        if (!response.ok) throw new Error('Update rejected');
-
-        if (selectedId === id) {
-          if (form.elements.note.value.trim() === note) form.reset();
-          feedback.textContent = 'Update shared.';
+        const response = await fetch(
+          `/api/events/${encodeURIComponent(id)}`,
+          {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          }
+        );
+        
+        const result = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(result.error || 'Update rejected.');
         }
-
+        
+        if (selectedId === id) {
+          fillUpdateForm(result);
+          feedback.textContent = 'Update shared successfully.';
+        }
+        
         await loadIncidents();
-      } catch {
-        if (selectedId === id) {
-          feedback.textContent = 'Could not confirm the update.';
-        }
+      } catch (error) {
+        feedback.textContent =
+        `Could not confirm the update. ${error.message}`;
       } finally {
+        saving = false;
+        
+        controls.forEach(control => {
+          control.disabled = false;
+        });
         button.disabled = false;
       }
     });

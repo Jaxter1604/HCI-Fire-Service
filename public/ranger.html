@@ -1,5 +1,48 @@
 <!doctype html>
 <html lang="en-GB">
+  <link
+  rel="stylesheet"
+  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+>
+
+<style>
+  .ranger-map {
+    height: 240px;
+    width: 100%;
+    border: 1px solid #d1d5db;
+    border-radius: 12px;
+    overflow: hidden;
+    margin: 12px 0;
+    z-index: 0;
+  }
+
+  .map-hint {
+    color: #4b5563;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .map-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    color: #4b5563;
+    font-size: 13px;
+  }
+
+  .map-legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .map-legend i {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+</style>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -136,6 +179,41 @@
       header, section { padding: 14px; }
       .field-row { grid-template-columns: 1fr; }
     }
+
+    [hidden] {
+      display: none !important;
+    }
+
+    #reports details {
+      margin-top: 16px;
+      border-top: 1px solid #e5e7eb;
+      padding-top: 12px;
+    }
+
+    #reports summary {
+      cursor: pointer;
+      font-weight: 600;
+      color: #111827;
+    }
+
+    #reports details form {
+      margin-top: 12px;
+    }
+
+    #reports textarea {
+      box-sizing: border-box;
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      font: inherit;
+      resize: vertical;
+    }
+
+    #reports li {
+      white-space: pre-line;
+    }
+
   </style>
 </head>
 
@@ -145,6 +223,32 @@
       <h1>Park Ranger</h1>
       Wildfire visitor evacuation
     </header>
+    
+    <section aria-labelledby="shared-map-heading">
+      <h2 id="shared-map-heading">Shared incident map</h2>
+      
+      <p class="map-hint">
+        Select an incident marker to view its location and latest details.
+      </p>
+
+      <div
+        id="shared-map"
+        class="ranger-map"
+        aria-label="Shared incident map"
+      ></div>
+
+      <div class="map-legend" aria-label="Map legend">
+        <span><i style="background:#dc2626"></i>Critical</span>
+        <span><i style="background:#ea580c"></i>High</span>
+        <span><i style="background:#eab308"></i>Moderate</span>
+        <span><i style="background:#16a34a"></i>Low</span>
+        <span><i style="background:#2563eb"></i>Resolved</span>
+      </div>
+
+      <p id="shared-map-status" class="map-hint" role="status">
+        Loading shared incidents…
+      </p>
+    </section>
 
     <section>
       <h2>Report visitors needing assistance</h2>
@@ -156,10 +260,57 @@
         </label>
 
         <label>
-          Location
-          <input name="locationName" required>
+          Location description
+          <input
+          name="locationName"
+          required
+          placeholder="e.g. Visitor car park near Aberfoyle">
         </label>
-
+        
+        <p id="location-help" class="map-hint">
+          Tap the map to place the incident pin. Tap again or drag the pin to adjust its position.
+        </p>
+        
+        <div
+        id="location-map"
+        class="ranger-map"
+        aria-label="Choose incident location"
+        aria-describedby="location-help"
+        ></div>
+        
+        <p id="selected-location" class="map-hint" role="status">
+          No location selected.
+        </p>
+        
+        <div class="field-row">
+          <label>
+            Latitude
+            <input
+            id="incident-lat"
+            name="lat"
+            type="number"
+            min="-90"
+            max="90"
+            step="any"
+            required
+            placeholder="Select on map or enter latitude"
+          >
+        </label>
+        
+        <label>
+          Longitude
+          <input
+            id="incident-lng"
+            name="lng"
+            type="number"
+            min="-180"
+            max="180"
+            step="any"
+            required
+            placeholder="Select on map or enter longitude">
+          </label>
+        </div>
+      
         <div class="field-row">
           <label>
             Number of visitors
@@ -178,7 +329,18 @@
 
         <label>
           Assistance needed
-          <input name="assistance" value="Guided evacuation" required>
+          <select name="assistance" id="assistance" required>
+            <option value="Guided evacuation">Guided evacuation</option>
+            <option value="Medical assistance">Medical assistance</option>
+            <option value="Transport assistance">Transport assistance</option>
+            <option value="Other">Other</option>
+            <option value="Not yet known">Not yet known</option>
+          </select>
+        </label>
+        
+        <label id="other-assistance-field" hidden>
+          Describe the assistance needed
+          <input name="otherAssistance" id="other-assistance" disabled>
         </label>
 
         <label>
@@ -204,6 +366,7 @@
     </section>
   </main>
 
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="/socket.io/socket.io.js"></script>
   <script>
     const form = document.getElementById('report');
@@ -212,9 +375,194 @@
     const trackingStatus = document.getElementById('tracking-status');
     const reports = document.getElementById('reports');
     const trackingKey = 'wildfire-ranger-reports';
+    const assistanceSelect = document.getElementById('assistance');
+    const otherAssistanceField = document.getElementById('other-assistance-field');
+    const otherAssistanceInput = document.getElementById('other-assistance');
+    
+    function updateAssistanceField() {
+      const showOther = assistanceSelect.value === 'Other';
+      otherAssistanceField.hidden = !showOther;
+      otherAssistanceInput.disabled = !showOther;
+      otherAssistanceInput.required = showOther;
+    }
+    
+    assistanceSelect.addEventListener('change', updateAssistanceField);
+    updateAssistanceField();
 
     let trackedIds = [];
     let requestNumber = 0;
+
+    const latitudeInput = document.getElementById('incident-lat');
+    const longitudeInput = document.getElementById('incident-lng');
+    const selectedLocation = document.getElementById('selected-location');
+    const sharedMapStatus = document.getElementById('shared-map-status');
+    
+    let sharedMap = null;
+    let locationMap = null;
+    let incidentLayer = null;
+    let selectedMarker = null;
+    let sharedMapFitted = false;
+    
+    function validCoordinates(lat, lng) {
+      return Number.isFinite(lat) &&
+        Number.isFinite(lng) &&
+        lat >= -90 && lat <= 90 &&
+        lng >= -180 && lng <= 180;
+    }
+
+    function updateSelectedLocation(lat, lng, moveMap = false) {
+      if (!validCoordinates(lat, lng) || !locationMap) return;
+
+      latitudeInput.value = lat.toFixed(6);
+      longitudeInput.value = lng.toFixed(6);
+
+      selectedLocation.textContent =
+        `Selected location: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+
+      if (!selectedMarker) {
+        selectedMarker = L.marker([lat, lng], {
+          draggable: true,
+          autoPan: true,
+          title: 'Selected incident location'
+        }).addTo(locationMap);
+
+        selectedMarker.on('dragend', () => {
+          const point = selectedMarker.getLatLng();
+          updateSelectedLocation(point.lat, point.lng);
+        });
+      } else {
+        selectedMarker.setLatLng([lat, lng]);
+      }
+
+      if (moveMap) {
+        locationMap.setView([lat, lng], locationMap.getZoom());
+      }
+    }
+
+    function incidentColour(event) {
+      if (event.status === 'Resolved') return '#2563eb';
+
+      return {
+        Critical: '#dc2626',
+        High: '#ea580c',
+        Moderate: '#eab308',
+        Low: '#16a34a'
+      }[event.severity] || '#6b7280';
+    }
+
+    function renderSharedMap(events) {
+      if (!sharedMap || !incidentLayer) return;
+
+      incidentLayer.clearLayers();
+      const points = [];
+
+      for (const event of events) {
+        const lat = event.location?.lat;
+        const lng = event.location?.lng;
+
+        if (!validCoordinates(lat, lng)) continue;
+
+        const popup = document.createElement('div');
+
+        const title = document.createElement('strong');
+        title.textContent = event.title;
+        popup.append(title);
+
+        const details = [
+          event.location.name,
+          `${event.severity} · ${event.status}`,
+          `Coordinates: ${lat.toFixed(6)}, ${lng.toFixed(6)}`,
+          `Reported by: ${event.authorName || 'Unknown'}`,
+          event.description
+        ];
+
+        if (event.actionRequired) {
+          details.push(`Action required: ${event.actionRequired}`);
+        }
+
+        const updates = event.updates || [];
+        const latest = updates[updates.length - 1];
+
+        if (latest) {
+          const time = new Date(latest.timestamp).toLocaleTimeString(
+            'en-GB',
+            { hour: '2-digit', minute: '2-digit' }
+          );
+
+          details.push(
+            `Latest update: ${time} · ${latest.author} · ${latest.text}`
+          );
+        }
+        
+        for (const text of details.filter(Boolean)) {
+          const paragraph = document.createElement('p');
+          paragraph.textContent = text;
+          popup.append(paragraph);
+        }
+
+        L.circleMarker([lat, lng], {
+          radius: 9,
+          color: '#ffffff',
+          weight: 2,
+          fillColor: incidentColour(event),
+          fillOpacity: 1
+        })
+          .bindPopup(popup)
+          .addTo(incidentLayer);
+
+        points.push([lat, lng]);
+      }
+
+      sharedMapStatus.textContent =
+        `${points.length} incident${points.length === 1 ? '' : 's'} shown.`;
+
+      // Only fit once, so live updates do not interrupt map exploration.
+      if (points.length && !sharedMapFitted) {
+        sharedMap.fitBounds(points, {
+          padding: [25, 25],
+          maxZoom: 13
+        });
+
+        sharedMapFitted = true;
+      }
+    }
+
+    if (typeof L !== 'undefined') {
+      const initialLocation = [56.205, -4.33];
+
+      sharedMap = L.map('shared-map').setView(initialLocation, 11);
+      locationMap = L.map('location-map').setView(initialLocation, 12);
+
+      for (const map of [sharedMap, locationMap]) {
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19,
+          attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+      }
+
+      incidentLayer = L.layerGroup().addTo(sharedMap);
+
+      locationMap.on('click', event => {
+        updateSelectedLocation(event.latlng.lat, event.latlng.lng);
+      });
+
+      function useEnteredCoordinates() {
+        if (!latitudeInput.value || !longitudeInput.value) return;
+
+        updateSelectedLocation(
+          Number(latitudeInput.value),
+          Number(longitudeInput.value),
+          true
+        );
+      }
+
+      latitudeInput.addEventListener('change', useEnteredCoordinates);
+      longitudeInput.addEventListener('change', useEnteredCoordinates);
+    } else {
+      sharedMapStatus.textContent = 'Map unavailable. Try reloading the page.';
+      selectedLocation.textContent =
+        'Map unavailable. Enter the incident coordinates below.';
+    }
 
     try {
       const savedIds = JSON.parse(localStorage.getItem(trackingKey) || '[]');
@@ -241,8 +589,19 @@
 
         const events = await response.json();
         if (request !== requestNumber) return;
+        renderSharedMap(events);
 
         const trackedEvents = events.filter(event => trackedIds.includes(event.id));
+        // Reuse existing forms so live updates preserve drafts and open state.
+        const existingForms = new Map();
+        
+        for (const card of reports.children) {
+          const details = card.querySelector('details');
+          
+          if (card.dataset.eventId && details) {
+            existingForms.set(card.dataset.eventId, details);
+          }
+        }
         reports.replaceChildren();
 
         if (trackedEvents.length) {
@@ -255,6 +614,7 @@
 
         for (const event of trackedEvents) {
           const card = document.createElement('article');
+          card.dataset.eventId = event.id;
           appendText(card, 'h3', event.title);
           appendText(card, 'p', `${event.location.name} · ${event.status}`);
 
@@ -274,8 +634,97 @@
               appendText(log, 'li', `${time} · ${update.author} · ${update.text}`);
             }
           }
+          const existingForm = existingForms.get(event.id);
+          if (existingForm) {
+            card.append(existingForm);
+          } else {
+          const moreInfo = document.createElement('details');
+          const summary = document.createElement('summary');
+          summary.textContent = 'Add information / correction';
+          moreInfo.append(summary);
+          
+          const updateForm = document.createElement('form');
+          
+          const nameLabel = document.createElement('label');
+          nameLabel.textContent = 'Your name';
+          
+          const nameInput = document.createElement('input');
+          nameInput.type = 'text';
+          nameInput.required = true;
+          nameInput.value = event.authorName || '';
+          nameLabel.append(nameInput);
+          
+          const noteLabel = document.createElement('label');
+          noteLabel.textContent = 'Additional information or correction';
+          
+          const noteInput = document.createElement('textarea');
+          noteInput.rows = 3;
+          noteInput.required = true;
+          noteInput.placeholder ='e.g. Two additional visitors have arrived at the reported location.';
+          noteLabel.append(noteInput);
+          
+          const updateButton = document.createElement('button');
+          updateButton.type = 'submit';
+          updateButton.textContent = 'Share information';
+          
+          const updateFeedback = document.createElement('p');
+          updateFeedback.setAttribute('role', 'status');
+          
+          updateForm.append(
+            nameLabel,
+            noteLabel,
+            updateButton,
+            updateFeedback
+          );
+          
+          updateForm.addEventListener('submit', async submission => {      
+            submission.preventDefault();
 
-          reports.append(card);
+            const author = nameInput.value.trim();
+            const note = noteInput.value.trim();
+            
+            if (!author || !note) {
+              updateFeedback.textContent = 'Enter your name and an update.';
+              return;
+            }
+            
+            updateButton.disabled = true;
+            updateFeedback.textContent = 'Sharing information…';
+            
+            try {
+              const response = await fetch(
+                `/api/events/${encodeURIComponent(event.id)}`,
+              {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  updateText: note,
+                  author,
+                  department: 'National Park Rangers'
+              })
+            }
+          );
+          
+          if (!response.ok) {
+            throw new Error('Update rejected.');
+          }
+          noteInput.value = '';
+          moreInfo.open = false;
+          
+          feedback.textContent = `Information shared · ${event.id}`;
+          await refreshReports();
+          } catch {
+            updateFeedback.textContent =
+            'Could not confirm the update. Check the connection before retrying.';
+          } finally {
+            updateButton.disabled = false;
+          }
+        });
+        moreInfo.append(updateForm);
+        card.append(moreInfo);
+      }
+
+        reports.append(card);
         }
       } catch {
         if (request === requestNumber) {
@@ -291,13 +740,28 @@
       const fields = new FormData(form);
       const authorName = fields.get('authorName').trim();
       const locationName = fields.get('locationName').trim();
-      const assistance = fields.get('assistance').trim();
+      const selectedAssistance = fields.get('assistance');
+      
+      const assistance = selectedAssistance === 'Other'
+      ? (fields.get('otherAssistance') || '').trim()
+      : selectedAssistance;
 
       if (!authorName || !locationName || !assistance) {
         feedback.textContent = 'Enter your name, the location and the assistance needed.';
         return;
       }
 
+      const latValue = fields.get('lat');
+      const lngValue = fields.get('lng');
+      
+      if (
+        !latValue ||
+        !lngValue ||
+        !validCoordinates(Number(latValue), Number(lngValue))
+      ) {
+        feedback.textContent = 'Select a valid incident location on the map.';
+        return;
+      } 
       submit.disabled = true;
       feedback.textContent = 'Submitting report…';
 
@@ -310,6 +774,8 @@
             description: `Visitors: ${fields.get('visitors')}. ` +
               `Injuries: ${fields.get('injuries')}. Assistance: ${assistance}.`,
             locationName,
+            lat: Number(fields.get('lat')),
+            lng: Number(fields.get('lng')),
             severity: fields.get('severity'),
             department: 'National Park Rangers',
             authorName,
@@ -330,6 +796,12 @@
 
         feedback.textContent = `Report submitted · ${saved.id}`;
         form.reset();
+        updateAssistanceField();
+        if (selectedMarker && locationMap) {
+          locationMap.removeLayer(selectedMarker);
+          selectedMarker = null;
+        }
+        selectedLocation.textContent = 'No location selected.';
         form.elements.authorName.value = authorName;
         await refreshReports();
       } catch {
