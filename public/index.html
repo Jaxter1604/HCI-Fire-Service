@@ -339,8 +339,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <script>
-    const API_URL = 'http://localhost:3000';
-    const socket = io(API_URL);
+    const socket = io();
 
     // Initialize Map centered on Loch Lomond & The Trossachs
     const map = L.map('map', { zoomControl: false }).setView([56.21, -4.32], 11);
@@ -493,7 +492,7 @@
         lng: center.lng + (Math.random() - 0.5) * 0.03
       };
 
-      await fetch(`${API_URL}/api/events`, {
+      await fetch(`/api/events`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -512,7 +511,7 @@
         department: document.getElementById('deptFilter').value === 'ALL' ? 'Multi-Agency' : document.getElementById('deptFilter').value
       };
 
-      await fetch(`${API_URL}/api/events/${id}`, {
+      await fetch(`/api/events/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
