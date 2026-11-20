@@ -116,7 +116,55 @@
     #activity li {
       white-space: pre-line;
     }
+
+    #create-incident input,
+    #create-incident select,
+    #create-incident textarea {
+      width: 100%;
+      min-width: 0;
+      padding: 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      background: white;
+      color: #111827; 
+      font: inherit;
+    }
+
+    #report-location-map {
+      width: 100%;
+      height: 240px;
+      border: 1px solid #d1d5db;
+      border-radius: 12px;
+      overflow: hidden;
+      z-index: 0;
+    }
+
+    .coordinate-fields {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    #incidents .card {
+      border-left: 5px solid var(--incident-colour, #6b7280);
+    }
+
+    #incidents .card[aria-pressed="true"] {
+      border-color: var(--incident-colour, #6b7280);
+      background: #f9fafb;
+    }
+
+    @media (max-width: 360px) {
+      .coordinate-fields {
+        grid-template-columns: 1fr;
+      }
+    }
+
   </style>
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  >
 </head>
 
 <body>
@@ -126,6 +174,107 @@
       <p>Wildfire visitor evacuation</p>
       <p id="connection" role="status">Connecting…</p>
     </header>
+
+    <section aria-labelledby="create-heading">
+      <h2 id="create-heading">Report an incident</h2>
+
+      <form id="create-incident" class="stack">
+         <label>
+          Your name
+          <input
+            name="authorName"
+            type="text"
+            required
+            autocomplete="name"
+            placeholder="Enter your name"
+          >
+        </label>
+
+        <label>
+          Incident title
+          <input
+            name="incidentTitle"
+            type="text"
+            required
+            maxlength="120"
+            placeholder="e.g. Additional crew needed near Aberfoyle"
+          >
+        </label>
+
+        <label>
+          Location description
+          <input
+            name="locationName"
+            type="text"
+            required
+            placeholder="e.g. Visitor car park near Aberfoyle"
+          >
+        </label>
+
+        <p class="muted">
+          Tap the map to place a pin. Drag the pin or tap again to adjust it.
+        </p>
+
+        <div
+          id="report-location-map"
+          aria-label="Choose incident location"
+        ></div>
+
+        <div class="coordinate-fields">
+          <label>
+            Latitude
+            <input
+              name="lat"
+              type="number"
+              min="-90"
+              max="90"
+              step="any"
+              required
+            >
+          </label>
+
+          <label>
+            Longitude
+            <input
+              name="lng"
+              type="number"
+              min="-180"
+              max="180"
+              step="any"
+              required
+            >
+          </label>
+        </div>
+
+        <p id="report-location-status" class="muted" role="status">
+          No location selected.
+        </p>
+
+        <label>
+          Severity
+          <select name="severity" required>
+            <option>Low</option>
+            <option selected>Moderate</option>
+            <option>High</option>
+            <option>Critical</option>
+          </select>
+        </label>
+
+        <label>
+          Incident details / assistance needed
+          <textarea
+            name="description"
+            rows="3"
+            required
+            placeholder="Describe the situation and any assistance needed"
+          ></textarea>
+        </label>
+
+        <button type="submit" class="primary">Submit report</button>
+
+        <p id="create-feedback" role="status"></p>
+      </form>
+    </section>
 
     <section aria-labelledby="incident-heading">
       <h2 id="incident-heading">Shared incidents</h2>
@@ -196,6 +345,7 @@
     </section>
   </main>
 
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="/socket.io/socket.io.js"></script>
   <script>
     const get = id => document.getElementById(id);
@@ -273,6 +423,18 @@
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'card';
+        const severityColours = {
+          Critical: '#dc2626',
+          High: '#ea580c',
+          Moderate: '#eab308',
+          Low: '#16a34a'
+        };
+        
+        const colour = event.status === 'Resolved'
+        ? '#2563eb'
+        : severityColours[event.severity] || '#6b7280';
+        
+        button.style.setProperty('--incident-colour', colour);
         button.dataset.eventId = event.id;
         button.setAttribute('aria-pressed', String(event.id === selectedId));
 
@@ -463,7 +625,190 @@
       get('connection').textContent = 'Live updates unavailable';
     }
 
+    const createForm = get('create-incident');
+    const createFeedback = get('create-feedback');
+    const locationFeedback = get('report-location-status');
+
+    let reportMap = null;
+    let reportPin = null;
+    let creatingIncident = false;
+
+    function validReportCoordinates(lat, lng) {
+      return Number.isFinite(lat) &&
+        Number.isFinite(lng) &&
+        lat >= -90 && lat <= 90 &&
+        lng >= -180 && lng <= 180;
+    }
+
+    function setReportLocation(lat, lng, moveMap = false) {
+      if (!validReportCoordinates(lat, lng)) return;
+
+      createForm.elements.lat.value = lat.toFixed(6);
+      createForm.elements.lng.value = lng.toFixed(6);
+
+      locationFeedback.textContent =
+        `Selected location: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+
+      if (!reportMap) return;
+
+      if (!reportPin) {
+        reportPin = L.marker([lat, lng], {
+          draggable: true,
+          autoPan: true,
+          title: 'New incident location'
+        }).addTo(reportMap);
+
+        reportPin.on('dragend', () => {
+          const point = reportPin.getLatLng();
+          setReportLocation(point.lat, point.lng);
+        });
+      } else {
+        reportPin.setLatLng([lat, lng]);
+      }
+
+      if (moveMap) {
+        reportMap.setView([lat, lng], reportMap.getZoom());
+      }
+    }
+
+    if (typeof L !== 'undefined') {
+      reportMap = L.map('report-location-map')
+        .setView([56.205, -4.33], 12);
+
+      L.tileLayer(
+        'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        {
+          maxZoom: 19,
+          attribution: '&copy; OpenStreetMap contributors'
+        }
+      ).addTo(reportMap);
+
+      reportMap.on('click', event => {
+        setReportLocation(event.latlng.lat, event.latlng.lng);
+      });
+    } else {
+      locationFeedback.textContent =
+        'Map unavailable. Enter coordinates in the fields above.';
+    }
+
+    function useReportCoordinates() {
+      const latText = createForm.elements.lat.value;
+      const lngText = createForm.elements.lng.value;
+
+      if (!latText || !lngText) return;
+
+      const lat = Number(latText);
+      const lng = Number(lngText);
+
+      if (validReportCoordinates(lat, lng)) {
+        setReportLocation(lat, lng, true);
+      } else {
+        locationFeedback.textContent = 'Enter valid coordinates.';
+      }
+    }
+
+    createForm.elements.lat.addEventListener(
+      'change',
+      useReportCoordinates
+    );
+
+    createForm.elements.lng.addEventListener(
+      'change',
+      useReportCoordinates
+    );
+
+    createForm.addEventListener('submit', async event => {
+      event.preventDefault();
+
+      if (creatingIncident) return;
+
+      const fields = new FormData(createForm);
+
+      const authorName = fields.get('authorName').trim();
+      const title = fields.get('incidentTitle').trim();
+      const locationName = fields.get('locationName').trim();
+      const description = fields.get('description').trim();
+
+      const latText = fields.get('lat');
+      const lngText = fields.get('lng');
+      const lat = Number(latText);
+      const lng = Number(lngText);
+
+      if (!authorName || !title || !locationName || !description) {
+        createFeedback.textContent = 'Complete the report fields.';
+        return;
+      }
+
+      if (
+        !latText ||
+        !lngText ||
+        !validReportCoordinates(lat, lng)
+      ) {
+        createFeedback.textContent =
+          'Choose a valid location on the map or enter coordinates.';
+        return;
+      }
+
+      const payload = {
+        title,
+        description,
+        locationName,
+        lat,
+        lng,
+        severity: fields.get('severity'),
+        department: 'Scottish Fire and Rescue Service',
+        authorName,
+        authorRole: 'Fire Responder'
+      };
+
+      const controls = Array.from(createForm.elements);
+
+      creatingIncident = true;
+      controls.forEach(control => {
+        control.disabled = true;
+      });
+
+      createFeedback.textContent = 'Submitting report…';
+
+      try {
+        const response = await fetch('/api/events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+          throw new Error('The server rejected the report.');
+        }
+
+        const saved = await response.json();
+
+        createForm.reset();
+        createForm.elements.authorName.value = authorName;
+
+        if (reportPin && reportMap) {
+          reportMap.removeLayer(reportPin);
+          reportPin = null;
+        }
+
+        locationFeedback.textContent = 'No location selected.';
+        createFeedback.textContent = `Report submitted · ${saved.title}`;
+
+        await loadIncidents();
+      } catch {
+        createFeedback.textContent =
+          'Could not confirm submission. Check the incident list before retrying.';
+      } finally {
+        creatingIncident = false;
+
+        controls.forEach(control => {
+          control.disabled = false;
+        });
+      }
+    });
+
     loadIncidents();
+
   </script>
 </body>
 </html>

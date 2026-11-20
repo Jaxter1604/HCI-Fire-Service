@@ -251,9 +251,20 @@
     </section>
 
     <section>
-      <h2>Report visitors needing assistance</h2>
+      <h2>Report an incident</h2>
 
       <form id="report">
+        <label>
+          Incident title
+          <input
+            name="incidentTitle"
+            type="text"
+            required
+            maxlength="120"
+            placeholder="e.g. Smoke spotted near Aberfoyle"
+          >
+        </label>
+
         <label>
           Your name
           <input name="authorName" required>
@@ -314,7 +325,7 @@
         <div class="field-row">
           <label>
             Number of visitors
-            <input name="visitors" type="number" min="1" required>
+            <input name="visitors" type="number" min="0" step="1" required>
           </label>
 
           <label>
@@ -335,6 +346,7 @@
             <option value="Transport assistance">Transport assistance</option>
             <option value="Other">Other</option>
             <option value="Not yet known">Not yet known</option>
+            <option value="No assistance currently required">No assistance currently required</option>
           </select>
         </label>
         
@@ -738,6 +750,7 @@
       event.preventDefault();
 
       const fields = new FormData(form);
+      const incidentTitle = fields.get('incidentTitle').trim();
       const authorName = fields.get('authorName').trim();
       const locationName = fields.get('locationName').trim();
       const selectedAssistance = fields.get('assistance');
@@ -746,11 +759,11 @@
       ? (fields.get('otherAssistance') || '').trim()
       : selectedAssistance;
 
-      if (!authorName || !locationName || !assistance) {
-        feedback.textContent = 'Enter your name, the location and the assistance needed.';
+      if (!incidentTitle || !authorName || !locationName || !assistance) {
+        feedback.textContent =
+          'Enter an incident title, your name, the location and the assistance needed.';
         return;
       }
-
       const latValue = fields.get('lat');
       const lngValue = fields.get('lng');
       
@@ -770,7 +783,7 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            title: 'Visitors needing assistance',
+            title: incidentTitle,
             description: `Visitors: ${fields.get('visitors')}. ` +
               `Injuries: ${fields.get('injuries')}. Assistance: ${assistance}.`,
             locationName,
