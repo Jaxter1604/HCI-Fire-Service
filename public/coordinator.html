@@ -5,7 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Coordinator · Wildfire visitor evacuation</title>
 
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  >
 
   <style>
     * { box-sizing: border-box; }
@@ -14,122 +17,439 @@
       margin: 0;
       background: #f3f4f6;
       color: #111827;
-      font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font: 16px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
 
-    main { max-width: 620px; margin: auto; padding: 12px 12px 32px; }
-    h1, h2, p { margin: 0 0 8px; }
-    h1 { font-size: 1.5rem; }
-    h2 { font-size: 1.125rem; }
+    main {
+      max-width: 600px;
+      margin: auto;
+      padding: 12px 12px 32px;
+    }
 
-    header, section, details {
+    nav.page-nav {
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+    }
+
+    nav.page-nav a.back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 44px;
+      padding: 9px 14px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      background: white;
+      color: #111827;
+      font-weight: 650;
+      text-decoration: none;
+    }
+
+    nav.page-nav a.back-link:hover {
+      background: #f9fafb;
+    }
+
+    header, section {
       padding: 16px;
       border: 1px solid #e5e7eb;
       border-radius: 12px;
       background: white;
     }
 
-    header { border-color: #111827; background: #111827; color: white; }
+    header { background: #111827; color: white; }
     header p { color: #e5e7eb; }
-    section, details { margin-top: 12px; }
-    summary { font-weight: 650; cursor: pointer; }
+    section { margin-top: 12px; }
+    h1, h2, h3, p { margin: 0 0 8px; }
+    h1 { font-size: 1.5rem; }
+    h2 { font-size: 1.125rem; }
+    h3 { font-size: 1rem; }
     .muted { color: #4b5563; font-size: .875rem; }
     .stack { display: grid; gap: 10px; }
 
-    button, select, textarea {
-      width: 100%;
+    a, button, input, select, textarea { font: inherit; }
+
+    button {
       min-height: 44px;
       border: 1px solid #d1d5db;
       border-radius: 8px;
-      padding: 9px 11px;
+      padding: 9px 12px;
       background: white;
       color: #111827;
-      font: inherit;
+      font-weight: 650;
+      cursor: pointer;
     }
 
-    button { cursor: pointer; font-weight: 650; }
-    button:disabled { opacity: .65; cursor: wait; }
-    button:focus-visible, select:focus-visible, textarea:focus-visible {
-      outline: 3px solid #2563eb;
-      outline-offset: 2px;
-    }
-
-    .dark { background: #111827; color: white; border-color: #111827; }
-    .primary { background: #dc2626; color: white; border-color: #dc2626; }
-    .card { display: grid; gap: 3px; text-align: left; overflow-wrap: anywhere; }
-    .card[data-severity="Critical"] { border-left: 4px solid #dc2626; }
-    .card[data-severity="High"] { border-left: 4px solid #f97316; }
-    #teams { padding-left: 20px; }
-
-    #map { width: 100%; height: 180px; border-radius: 8px; }
-    #map-dialog {
-      width: 100%;
-      height: 100%;
-      max-width: none;
-      max-height: none;
-      margin: 0;
-      padding: 0;
-      border: 0;
-    }
-
-    #map-dialog[open] {
-      display: grid;
-      grid-template-rows: auto minmax(0, 1fr);
-    }
-
-    #map-dialog #map { height: 100%; border-radius: 0; }
-    .map-toolbar { padding: 10px 12px; background: #111827; }
-    .map-toolbar button { width: auto; }
-
-    #incident-dialog {
-      width: min(560px, calc(100% - 24px));
-      max-height: 85dvh;
-      padding: 18px;
-      border: 0;
-      border-radius: 14px;
-      color: #111827;
-    }
-
-    .map-link {
-      display: grid;
-      place-items: center;
+    section > a:not(.back-link) {
+      display: inline-flex;
+      align-items: center;
       min-height: 44px;
+      border: 1px solid #d1d5db;
       border-radius: 8px;
+      padding: 9px 12px;
+      background: white;
+      color: #111827;
       font-weight: 650;
       text-decoration: none;
     }
 
-    dialog::backdrop { background: rgb(17 24 39 / 55%); }
-    form { margin-top: 14px; }
+    button:disabled { opacity: .65; cursor: wait; }
+
+    .card {
+      display: grid;
+      gap: 2px;
+      text-align: left;
+      overflow-wrap: anywhere;
+    }
+
+    .card[aria-pressed="true"] {
+      border-left: 4px solid #111827;
+      background: #f9fafb;
+    }
+
+    .primary {
+      background: #dc2626;
+      border-color: #dc2626;
+      color: white;
+    }
+
+    .dark {
+      background: #111827;
+      border-color: #111827;
+      color: white;
+    }
+
+    .danger-outline {
+      background: #fef2f2;
+      border-color: #dc2626;
+      color: #b91c1c;
+    }
+
     label { display: grid; gap: 4px; font-weight: 600; }
-    textarea { resize: vertical; font-weight: 400; }
+
+    input, select, textarea {
+      box-sizing: border-box;
+      width: 100%;
+      min-width: 0;
+      padding: 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      background: #fff;
+      color: #111827;
+    }
+
+    textarea { resize: vertical; }
+
+    :focus-visible { outline: 3px solid #2563eb; outline-offset: 2px; }
+    #details { overflow-wrap: anywhere; }
+    #description { white-space: pre-wrap; }
     #activity { padding-left: 20px; }
-    #activity li { margin-bottom: 6px; overflow-wrap: anywhere; }
-    #incident-description { white-space: pre-wrap; overflow-wrap: anywhere; }
+    #activity li { margin-bottom: 6px; white-space: pre-line; }
+
+    .pin-map {
+      width: 100%;
+      height: 240px;
+      border: 1px solid #d1d5db;
+      border-radius: 12px;
+      overflow: hidden;
+      z-index: 0;
+    }
+
+    .coordinate-fields {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    #incidents .card {
+      border-left: 5px solid var(--incident-colour, #6b7280);
+    }
+
+    #incidents .card[aria-pressed="true"] {
+      border-color: var(--incident-colour, #6b7280);
+      background: #f9fafb;
+    }
+
+    .resource-card {
+      border-left: 5px solid #111827;
+    }
+
+    .divider {
+      border: 0;
+      border-top: 1px solid #e5e7eb;
+      margin: 6px 0;
+    }
+
+    @media (max-width: 360px) {
+      .coordinate-fields {
+        grid-template-columns: 1fr;
+      }
+    }
   </style>
 </head>
 
 <body>
   <main>
+    <nav class="page-nav" aria-label="Primary navigation">
+      <a href="./index.html" class="back-link" aria-label="Back to shared map">← Back to map</a>
+    </nav>
+
     <header>
       <h1>Coordinator</h1>
       <p>Wildfire visitor evacuation</p>
       <p id="connection" role="status">Connecting…</p>
     </header>
 
-    <section class="stack" aria-labelledby="map-heading">
-      <h2 id="map-heading">Shared map</h2>
-      <div id="map-preview">
-        <div id="map" aria-label="Shared incident map"></div>
-      </div>
-      <a class="dark map-link" href="./index.html?from=coordinator">Open map</a>
-      <p id="map-message" class="muted" role="status" hidden></p>
+    <!-- 1. Report an Incident -->
+    <section aria-labelledby="create-heading">
+      <h2 id="create-heading">Report an incident</h2>
+
+      <form id="create-incident" class="stack">
+        <label>
+          Your name
+          <input
+            name="authorName"
+            type="text"
+            required
+            autocomplete="name"
+            placeholder="Enter your name"
+          >
+        </label>
+
+        <label>
+          Assigned department
+          <select name="department" required>
+            <option value="Multi-Agency Coordination">Multi-Agency Coordination</option>
+            <option value="Scottish Fire and Rescue Service">Scottish Fire and Rescue Service</option>
+            <option value="National Park Rangers">National Park Rangers</option>
+          </select>
+        </label>
+
+        <label>
+          Incident title
+          <input
+            name="incidentTitle"
+            type="text"
+            required
+            maxlength="120"
+            placeholder="e.g. Evacuation checkpoint established at Aberfoyle"
+          >
+        </label>
+
+        <label>
+          Location description
+          <input
+            name="locationName"
+            type="text"
+            required
+            placeholder="e.g. Main junction near Aberfoyle"
+          >
+        </label>
+
+        <p class="muted">
+          Tap the map to place a pin. Drag the pin or tap again to adjust it.
+        </p>
+
+        <div
+          id="report-location-map"
+          class="pin-map"
+          aria-label="Choose incident location"
+        ></div>
+
+        <div class="coordinate-fields">
+          <label>
+            Latitude
+            <input
+              name="lat"
+              type="number"
+              min="-90"
+              max="90"
+              step="any"
+              required
+            >
+          </label>
+
+          <label>
+            Longitude
+            <input
+              name="lng"
+              type="number"
+              min="-180"
+              max="180"
+              step="any"
+              required
+            >
+          </label>
+        </div>
+
+        <p id="report-location-status" class="muted" role="status">
+          No location selected.
+        </p>
+
+        <label>
+          Severity
+          <select name="severity" required>
+            <option>Low</option>
+            <option selected>Moderate</option>
+            <option>High</option>
+            <option>Critical</option>
+          </select>
+        </label>
+
+        <label>
+          Incident details / coordination instructions
+          <textarea
+            name="description"
+            rows="3"
+            required
+            placeholder="Describe the situation and coordination instructions"
+          ></textarea>
+        </label>
+
+        <button type="submit" class="primary">Submit report</button>
+
+        <p id="create-feedback" class="muted" role="status"></p>
+      </form>
     </section>
 
-    <section class="stack" aria-labelledby="overview-heading">
-      <h2 id="overview-heading">Task overview</h2>
+    <!-- 2. Manage Resources & Vehicles (Add, Relocate, Remove) -->
+    <section aria-labelledby="resources-heading" class="stack">
+      <h2 id="resources-heading">Manage resources &amp; vehicles</h2>
+      <p class="muted">
+        Select a deployed unit to move its pin or update status, or add a new resource below.
+      </p>
+
+      <div id="resource-list" class="stack"></div>
+
+      <div id="edit-resource-panel" class="stack" hidden>
+        <hr class="divider">
+        <h3 id="edit-resource-title">Edit resource location</h3>
+
+        <form id="edit-resource-form" class="stack">
+          <label>
+            Resource / vehicle name
+            <input name="name" type="text" required>
+          </label>
+
+          <label>
+            Department
+            <select name="department" required>
+              <option value="Scottish Fire and Rescue Service">Scottish Fire and Rescue Service</option>
+              <option value="National Park Rangers">National Park Rangers</option>
+              <option value="Multi-Agency Coordination">Multi-Agency Coordination</option>
+            </select>
+          </label>
+
+          <label>
+            Status
+            <select name="status" required>
+              <option value="Active">Active</option>
+              <option value="En-route">En-route</option>
+              <option value="On Scene">On Scene</option>
+              <option value="Standby">Standby</option>
+            </select>
+          </label>
+
+          <p class="muted">
+            Tap the map or drag the pin to relocate this unit.
+          </p>
+
+          <div
+            id="edit-resource-map"
+            class="pin-map"
+            aria-label="Relocate resource on map"
+          ></div>
+
+          <div class="coordinate-fields">
+            <label>
+              Latitude
+              <input name="lat" type="number" min="-90" max="90" step="any" required>
+            </label>
+
+            <label>
+              Longitude
+              <input name="lng" type="number" min="-180" max="180" step="any" required>
+            </label>
+          </div>
+
+          <button type="submit" class="dark">Save location &amp; status</button>
+          <button type="button" id="delete-resource-btn" class="danger-outline">Remove resource</button>
+          <button type="button" id="cancel-edit-resource-btn">Close editor</button>
+          <p id="edit-resource-feedback" class="muted" role="status"></p>
+        </form>
+      </div>
+
+      <hr class="divider">
+      <h3>Deploy new resource</h3>
+
+      <form id="add-resource-form" class="stack">
+        <label>
+          Resource / vehicle name
+          <input
+            name="name"
+            type="text"
+            required
+            placeholder="e.g. Fire Engine Unit 7 or Ranger Patrol 4"
+          >
+        </label>
+
+        <label>
+          Department
+          <select name="department" required>
+            <option value="Scottish Fire and Rescue Service">Scottish Fire and Rescue Service</option>
+            <option value="National Park Rangers">National Park Rangers</option>
+            <option value="Multi-Agency Coordination">Multi-Agency Coordination</option>
+          </select>
+        </label>
+
+        <label>
+          Initial status
+          <select name="status" required>
+            <option value="Active">Active</option>
+            <option value="En-route">En-route</option>
+            <option value="On Scene">On Scene</option>
+            <option value="Standby">Standby</option>
+          </select>
+        </label>
+
+        <p class="muted">
+          Tap the map to drop a pin for the new resource location.
+        </p>
+
+        <div
+          id="add-resource-map"
+          class="pin-map"
+          aria-label="Choose new resource location"
+        ></div>
+
+        <div class="coordinate-fields">
+          <label>
+            Latitude
+            <input name="lat" type="number" min="-90" max="90" step="any" required>
+          </label>
+
+          <label>
+            Longitude
+            <input name="lng" type="number" min="-180" max="180" step="any" required>
+          </label>
+        </div>
+
+        <p id="add-resource-location-status" class="muted" role="status">
+          No location selected.
+        </p>
+
+        <button type="submit" class="primary">Deploy resource</button>
+        <p id="add-resource-feedback" class="muted" role="status"></p>
+      </form>
+    </section>
+
+    <!-- 3. Shared Incidents Overview & Inline Update -->
+    <section aria-labelledby="incident-heading" class="stack">
+      <h2 id="incident-heading">Shared incidents</h2>
+      <a href="./index.html?from=coordinator">Open shared map</a>
+
       <label>
-        Incident status
+        Filter by status
         <select id="status-filter">
           <option value="">All incidents</option>
           <option>Active</option>
@@ -137,70 +457,103 @@
           <option>Resolved</option>
         </select>
       </label>
+
       <p id="list-message" class="muted" role="status">Loading incidents…</p>
-      <div id="incident-list" class="stack"></div>
+      <div id="incidents" class="stack"></div>
     </section>
 
-    <details>
-      <summary>Rescue teams and resources</summary>
-      <ul id="teams"></ul>
-    </details>
+    <section id="details" aria-labelledby="title" hidden>
+      <h2 id="title"></h2>
+      <p id="summary"></p>
+      <p id="source" class="muted"></p>
+      <p id="description"></p>
+
+      <h2>Activity log</h2>
+      <ul id="activity"></ul>
+
+      <form id="progress" class="stack">
+        <label for="coordinator-name">Your name</label>
+        <input
+          id="coordinator-name"
+          name="coordinatorName"
+          type="text"
+          required
+          placeholder="Enter your name"
+          autocomplete="name"
+        >
+
+        <label>
+          Incident status
+          <select name="status" required>
+            <option value="Active">Active</option>
+            <option value="Decision Pending">Decision Pending</option>
+            <option value="Resolved">Resolved</option>
+          </select>
+        </label>
+
+        <label>
+          Severity
+          <select name="severity" required>
+            <option value="Low">Low</option>
+            <option value="Moderate">Moderate</option>
+            <option value="High">High</option>
+            <option value="Critical">Critical</option>
+          </select>
+        </label>
+
+        <label>
+          Action required
+          <textarea
+            name="actionRequired"
+            rows="3"
+            placeholder="e.g. Coordinate trail closure with Rangers and dispatch water tanker"
+          ></textarea>
+        </label>
+
+        <label>
+          Progress update / coordination note
+          <textarea
+            name="note"
+            rows="3"
+            placeholder="Record coordination decision or latest outcome"
+          ></textarea>
+        </label>
+
+        <button type="submit" class="primary">Share update</button>
+      </form>
+
+      <p id="feedback" class="muted" role="status"></p>
+    </section>
   </main>
-
-  <dialog id="map-dialog" aria-label="Expanded shared map">
-    <div class="map-toolbar">
-      <button type="button" id="close-map" autofocus>Close map</button>
-    </div>
-  </dialog>
-
-  <dialog id="incident-dialog" aria-labelledby="incident-title">
-    <h2 id="incident-title"></h2>
-    <p id="incident-meta" class="muted"></p>
-    <p id="incident-description"></p>
-
-    <h2>Activity log</h2>
-    <ul id="activity"></ul>
-
-    <form id="update-form" class="stack">
-      <label>
-        Update incident status
-        <select name="status">
-          <option>Active</option>
-          <option>Decision Pending</option>
-          <option>Resolved</option>
-        </select>
-      </label>
-
-      <label>
-        Action note
-        <textarea name="note" rows="2" placeholder="Record a coordination update"></textarea>
-      </label>
-
-      <button type="submit" class="primary">Log update</button>
-      <p id="update-feedback" class="muted" role="status"></p>
-      <button type="button" id="close-incident">Close details</button>
-    </form>
-  </dialog>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="/socket.io/socket.io.js"></script>
-
   <script>
     const get = id => document.getElementById(id);
-    const mapElement = get('map');
-    const mapDialog = get('map-dialog');
-    const incidentDialog = get('incident-dialog');
-    const updateForm = get('update-form');
+    const form = get('progress');
+    const feedback = get('feedback');
 
     let incidents = [];
     let resources = [];
     let selectedId = null;
-    let eventsVersion = 0;
+    let selectedResourceId = null;
+    let revision = 0;
+    let saving = false;
+    let formBaseline = {};
 
-    function addText(parent, tag, text, className = '') {
+    const editableFields = ['status', 'severity', 'actionRequired'];
+
+    function validCoordinates(lat, lng) {
+      return Number.isFinite(lat) &&
+        Number.isFinite(lng) &&
+        lat >= -90 && lat <= 90 &&
+        lng >= -180 && lng <= 180;
+    }
+
+    function appendText(parent, tag, value, className = '') {
       const element = document.createElement(tag);
-      element.textContent = text;
-      if (className) element.className = className;
+      element.className = className;
+      element.textContent = value;
       parent.append(element);
       return element;
     }
@@ -212,191 +565,531 @@
       });
     }
 
-    const map = typeof L === 'undefined'
-      ? null
-      : L.map(mapElement).setView([56.21, -4.32], 11);
+    function setupPinPicker(mapId, latInput, lngInput, statusEl, markerTitle) {
+      if (typeof L === 'undefined') {
+        if (statusEl) statusEl.textContent = 'Map unavailable. Enter coordinates manually.';
+        return { map: null, setLocation: () => {}, clearMarker: () => {} };
+      }
 
-    const markers = map ? L.layerGroup().addTo(map) : null;
-
-    if (map) {
+      const mapInstance = L.map(mapId).setView([56.205, -4.33], 12);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
         attribution: '&copy; OpenStreetMap contributors'
-      }).addTo(map);
-    } else {
-      get('open-map').disabled = true;
-      mapElement.hidden = true;
-      get('map-message').hidden = false;
-      get('map-message').textContent = 'Map unavailable. Open an incident from the list below.';
-    }
+      }).addTo(mapInstance);
 
-    function drawMarkers(visibleIncidents) {
-      if (!markers) return;
-      markers.clearLayers();
+      let pin = null;
 
-      for (const event of visibleIncidents) {
-        const { lat, lng } = event.location;
-        if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+      function setLocation(lat, lng, moveMap = false) {
+        if (!validCoordinates(lat, lng)) return;
 
-        const marker = L.marker([lat, lng], { title: event.title })
-          .addTo(markers);
+        latInput.value = lat.toFixed(6);
+        lngInput.value = lng.toFixed(6);
 
-        const label = document.createElement('span');
-        label.textContent = event.title;
-        marker.bindTooltip(label);
-        marker.on('click', () => openIncident(event.id));
+        if (statusEl) {
+          statusEl.textContent = `Selected location: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+        }
+
+        if (!pin) {
+          pin = L.marker([lat, lng], {
+            draggable: true,
+            autoPan: true,
+            title: markerTitle
+          }).addTo(mapInstance);
+
+          pin.on('dragend', () => {
+            const point = pin.getLatLng();
+            setLocation(point.lat, point.lng);
+          });
+        } else {
+          pin.setLatLng([lat, lng]);
+        }
+
+        if (moveMap) {
+          mapInstance.setView([lat, lng], mapInstance.getZoom());
+        }
       }
 
-      for (const team of resources) {
-        if (!Number.isFinite(team.lat) || !Number.isFinite(team.lng)) continue;
+      function clearMarker() {
+        if (pin) {
+          mapInstance.removeLayer(pin);
+          pin = null;
+        }
+        if (statusEl) statusEl.textContent = 'No location selected.';
+      }
 
-        const label = document.createElement('span');
-        label.textContent = `${team.name} · ${team.status}`;
+      mapInstance.on('click', event => {
+        setLocation(event.latlng.lat, event.latlng.lng);
+      });
 
-        L.circleMarker([team.lat, team.lng], {
-          radius: 6,
-          color: '#111827',
-          fillColor: '#111827',
-          fillOpacity: 1
-        }).addTo(markers).bindTooltip(label);
+      function onManualInput() {
+        if (!latInput.value || !lngInput.value) return;
+        const lat = Number(latInput.value);
+        const lng = Number(lngInput.value);
+        if (validCoordinates(lat, lng)) {
+          setLocation(lat, lng, true);
+        } else if (statusEl) {
+          statusEl.textContent = 'Enter valid coordinates.';
+        }
+      }
+
+      latInput.addEventListener('change', onManualInput);
+      lngInput.addEventListener('change', onManualInput);
+
+      return { map: mapInstance, setLocation, clearMarker };
+    }
+
+    const createForm = get('create-incident');
+    const createFeedback = get('create-feedback');
+    const reportPicker = setupPinPicker(
+      'report-location-map',
+      createForm.elements.lat,
+      createForm.elements.lng,
+      get('report-location-status'),
+      'New incident location'
+    );
+
+    let creatingIncident = false;
+
+    createForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      if (creatingIncident) return;
+
+      const fields = new FormData(createForm);
+      const authorName = fields.get('authorName').trim();
+      const department = fields.get('department');
+      const title = fields.get('incidentTitle').trim();
+      const locationName = fields.get('locationName').trim();
+      const description = fields.get('description').trim();
+      const latText = fields.get('lat');
+      const lngText = fields.get('lng');
+      const lat = Number(latText);
+      const lng = Number(lngText);
+
+      if (!authorName || !title || !locationName || !description) {
+        createFeedback.textContent = 'Complete all report fields.';
+        return;
+      }
+
+      if (!latText || !lngText || !validCoordinates(lat, lng)) {
+        createFeedback.textContent = 'Choose a valid location on the map or enter coordinates.';
+        return;
+      }
+
+      const controls = Array.from(createForm.elements);
+      creatingIncident = true;
+      controls.forEach(c => { c.disabled = true; });
+      createFeedback.textContent = 'Submitting report…';
+
+      try {
+        const response = await fetch('/api/events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title,
+            description,
+            locationName,
+            lat,
+            lng,
+            severity: fields.get('severity'),
+            department,
+            authorName,
+            authorRole: 'Coordinator'
+          })
+        });
+
+        if (!response.ok) throw new Error('The server rejected the report.');
+        const saved = await response.json();
+
+        createForm.reset();
+        createForm.elements.authorName.value = authorName;
+        reportPicker.clearMarker();
+        createFeedback.textContent = `Report submitted · ${saved.title}`;
+        await loadOverview();
+      } catch {
+        createFeedback.textContent = 'Could not confirm submission. Check the incident list before retrying.';
+      } finally {
+        creatingIncident = false;
+        controls.forEach(c => { c.disabled = false; });
+      }
+    });
+
+    const addResourceForm = get('add-resource-form');
+    const addResourceFeedback = get('add-resource-feedback');
+    const addResourcePicker = setupPinPicker(
+      'add-resource-map',
+      addResourceForm.elements.lat,
+      addResourceForm.elements.lng,
+      get('add-resource-location-status'),
+      'New resource location'
+    );
+
+    const editResourcePanel = get('edit-resource-panel');
+    const editResourceForm = get('edit-resource-form');
+    const editResourceFeedback = get('edit-resource-feedback');
+    const editResourcePicker = setupPinPicker(
+      'edit-resource-map',
+      editResourceForm.elements.lat,
+      editResourceForm.elements.lng,
+      null,
+      'Resource location'
+    );
+
+    function renderResources() {
+      const list = get('resource-list');
+      list.replaceChildren();
+
+      if (!resources.length) {
+        appendText(list, 'p', 'No resources currently deployed.', 'muted');
+        return;
+      }
+
+      for (const res of resources) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'card resource-card';
+        button.setAttribute('aria-pressed', String(res.id === selectedResourceId));
+
+        appendText(button, 'strong', `${res.name} (${res.status})`);
+        appendText(button, 'span', res.department, 'muted');
+        appendText(button, 'span', `Coordinates: ${Number(res.lat).toFixed(5)}, ${Number(res.lng).toFixed(5)}`, 'muted');
+
+        button.addEventListener('click', () => openResourceEditor(res));
+        list.append(button);
       }
     }
 
-    function renderOverview() {
+    function openResourceEditor(resource) {
+      selectedResourceId = resource.id;
+      editResourcePanel.hidden = false;
+      get('edit-resource-title').textContent = `Relocate / edit: ${resource.name}`;
+      editResourceForm.elements.name.value = resource.name;
+      editResourceForm.elements.department.value = resource.department;
+      editResourceForm.elements.status.value = resource.status;
+      editResourceFeedback.textContent = '';
+
+      renderResources();
+
+      if (editResourcePicker.map) {
+        setTimeout(() => {
+          editResourcePicker.map.invalidateSize();
+          editResourcePicker.setLocation(Number(resource.lat), Number(resource.lng), true);
+        }, 50);
+      } else {
+        editResourceForm.elements.lat.value = Number(resource.lat).toFixed(6);
+        editResourceForm.elements.lng.value = Number(resource.lng).toFixed(6);
+      }
+    }
+
+    get('cancel-edit-resource-btn').addEventListener('click', () => {
+      selectedResourceId = null;
+      editResourcePanel.hidden = true;
+      renderResources();
+    });
+
+    editResourceForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      if (!selectedResourceId) return;
+
+      const lat = Number(editResourceForm.elements.lat.value);
+      const lng = Number(editResourceForm.elements.lng.value);
+      const name = editResourceForm.elements.name.value.trim();
+
+      if (!name || !validCoordinates(lat, lng)) {
+        editResourceFeedback.textContent = 'Provide a valid resource name and coordinates.';
+        return;
+      }
+
+      editResourceFeedback.textContent = 'Saving changes…';
+
+      try {
+        const response = await fetch(`/api/resources/${encodeURIComponent(selectedResourceId)}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name,
+            department: editResourceForm.elements.department.value,
+            status: editResourceForm.elements.status.value,
+            lat,
+            lng
+          })
+        });
+
+        if (!response.ok) throw new Error('Update failed');
+        const updated = await response.json();
+        resources = resources.map(r => r.id === updated.id ? updated : r);
+        renderResources();
+        get('edit-resource-title').textContent = `Relocate / edit: ${updated.name}`;
+        editResourceFeedback.textContent = 'Resource updated on live map.';
+      } catch {
+        editResourceFeedback.textContent = 'Could not save resource changes.';
+      }
+    });
+
+    get('delete-resource-btn').addEventListener('click', async () => {
+      if (!selectedResourceId) return;
+      editResourceFeedback.textContent = 'Removing resource…';
+
+      try {
+        const response = await fetch(`/api/resources/${encodeURIComponent(selectedResourceId)}`, {
+          method: 'DELETE'
+        });
+
+        if (!response.ok) throw new Error('Delete failed');
+        resources = resources.filter(r => r.id !== selectedResourceId);
+        selectedResourceId = null;
+        editResourcePanel.hidden = true;
+        renderResources();
+      } catch {
+        editResourceFeedback.textContent = 'Could not remove resource.';
+      }
+    });
+
+    addResourceForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      const fields = new FormData(addResourceForm);
+      const name = fields.get('name').trim();
+      const latText = fields.get('lat');
+      const lngText = fields.get('lng');
+      const lat = Number(latText);
+      const lng = Number(lngText);
+
+      if (!name || !latText || !lngText || !validCoordinates(lat, lng)) {
+        addResourceFeedback.textContent = 'Enter a resource name and tap the map to select coordinates.';
+        return;
+      }
+
+      addResourceFeedback.textContent = 'Deploying resource…';
+
+      try {
+        const response = await fetch('/api/resources', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name,
+            department: fields.get('department'),
+            status: fields.get('status'),
+            lat,
+            lng
+          })
+        });
+
+        if (!response.ok) throw new Error('Deploy failed');
+        const created = await response.json();
+        if (!resources.some(r => r.id === created.id)) {
+          resources.push(created);
+        }
+        addResourceForm.reset();
+        addResourcePicker.clearMarker();
+        renderResources();
+        addResourceFeedback.textContent = `Deployed · ${created.name}`;
+      } catch {
+        addResourceFeedback.textContent = 'Could not deploy resource.';
+      }
+    });
+
+    function incidentFieldValue(event, field) {
+      return event[field] || '';
+    }
+
+    function fillUpdateForm(event) {
+      formBaseline = {};
+      for (const field of editableFields) {
+        const value = incidentFieldValue(event, field);
+        form.elements[field].value = value;
+        formBaseline[field] = value;
+      }
+      form.elements.note.value = '';
+    }
+
+    function syncUpdateForm(event) {
+      if (saving) return;
+      for (const field of editableFields) {
+        const input = form.elements[field];
+        const latestValue = incidentFieldValue(event, field);
+        if (input.value === formBaseline[field]) {
+          input.value = latestValue;
+          formBaseline[field] = latestValue;
+        }
+      }
+    }
+
+    function renderIncidents() {
       const filter = get('status-filter').value;
       const visible = incidents.filter(event => !filter || event.status === filter);
-      const list = get('incident-list');
-      const teams = get('teams');
+      const list = get('incidents');
+      const selected = incidents.find(event => event.id === selectedId);
+      const activeId = document.activeElement?.dataset.eventId;
 
       list.replaceChildren();
-      teams.replaceChildren();
       get('list-message').textContent = visible.length ? '' : 'No matching incidents.';
+
+      const severityColours = {
+        Critical: '#dc2626',
+        High: '#ea580c',
+        Moderate: '#eab308',
+        Low: '#16a34a'
+      };
 
       for (const event of visible) {
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'card';
-        button.dataset.severity = event.severity;
-        addText(button, 'strong', event.title);
-        addText(button, 'span', event.location.name, 'muted');
-        addText(button, 'span', `${event.severity} · ${event.status}`, 'muted');
-        button.addEventListener('click', () => openIncident(event.id));
+
+        const colour = event.status === 'Resolved'
+          ? '#2563eb'
+          : severityColours[event.severity] || '#6b7280';
+
+        button.style.setProperty('--incident-colour', colour);
+        button.dataset.eventId = event.id;
+        button.setAttribute('aria-pressed', String(event.id === selectedId));
+
+        appendText(button, 'strong', event.title);
+        appendText(button, 'span', `${event.location.name} · Assigned: ${event.department}`, 'muted');
+        appendText(button, 'span', `${event.severity} · ${event.status}`, 'muted');
+
+        button.addEventListener('click', () => {
+          if (saving) return;
+          const changedSelection = event.id !== selectedId;
+          selectedId = event.id;
+          renderIncidents();
+
+          if (changedSelection) {
+            fillUpdateForm(event);
+            feedback.textContent = '';
+          }
+        });
+
         list.append(button);
+        if (event.id === activeId) button.focus({ preventScroll: true });
       }
 
-      for (const team of resources) {
-        addText(teams, 'li', `${team.name} · ${team.status}`);
-      }
+      get('details').hidden = !selected;
+      if (!selected) return;
 
-      if (!resources.length) addText(teams, 'li', 'No resources reported.');
-      drawMarkers(visible);
-    }
-
-    function renderIncident(event) {
-      get('incident-title').textContent = event.title;
-      get('incident-meta').textContent =
-        `${event.location.name} · ${event.severity} · ${event.status} · ` +
-        `Reported by ${event.authorName} at ${formatTime(event.timestamp)}`;
-      get('incident-description').textContent = event.description || '';
+      get('title').textContent = selected.title;
+      get('summary').textContent =
+        `${selected.location.name} · ${selected.severity} · ${selected.status}`;
+      get('source').textContent =
+        `Assigned to ${selected.department} · Reported by ${selected.authorName} at ${formatTime(selected.timestamp)}`;
+      get('description').textContent = selected.description || '';
 
       const activity = get('activity');
+      const updates = selected.updates || [];
       activity.replaceChildren();
 
-      if (!event.updates.length) addText(activity, 'li', 'No updates logged yet.');
+      if (!updates.length) appendText(activity, 'li', 'No updates logged yet.');
 
-      for (const update of event.updates) {
-        addText(activity, 'li',
-          `${formatTime(update.timestamp)} · ${update.author} · ${update.text}`);
+      for (const update of updates) {
+        appendText(
+          activity,
+          'li',
+          `${formatTime(update.timestamp)} · ${update.author} (${update.department}) · ${update.text}`
+        );
       }
     }
 
-    function openIncident(id) {
-      const event = incidents.find(item => item.id === id);
-      if (!event) return;
-
-      selectedId = id;
-      updateForm.reset();
-      updateForm.elements.status.value = event.status;
-      get('update-feedback').textContent = '';
-      renderIncident(event);
-      incidentDialog.showModal();
-    }
-
-    function receiveIncidents(events) {
-      eventsVersion += 1;
+    function receiveEvents(events) {
+      revision += 1;
       incidents = events;
-      renderOverview();
 
-      const selected = incidents.find(item => item.id === selectedId);
-      if (incidentDialog.open && selected) renderIncident(selected);
+      const selected = incidents.find(event => event.id === selectedId);
+      if (selected) {
+        syncUpdateForm(selected);
+      }
+      renderIncidents();
     }
 
-    get('close-incident').addEventListener('click', () => incidentDialog.close());
-    incidentDialog.addEventListener('close', () => { selectedId = null; });
-    get('status-filter').addEventListener('change', renderOverview);
-
-    async function readJson(path) {
-      const response = await fetch(path, { cache: 'no-store' });
-      if (!response.ok) throw new Error('Request failed');
-      return response.json();
-    }
+    get('status-filter').addEventListener('change', renderIncidents);
 
     async function loadOverview() {
-      const requestedVersion = eventsVersion;
-      const [eventsResult, resourcesResult] = await Promise.allSettled([
-        readJson('/api/events'),
-        readJson('/api/resources')
+      const before = revision;
+      const [eventsRes, resourcesRes] = await Promise.allSettled([
+        fetch('/api/events', { cache: 'no-store' }),
+        fetch('/api/resources', { cache: 'no-store' })
       ]);
 
-      if (resourcesResult.status === 'fulfilled') {
-        resources = resourcesResult.value;
-        renderOverview();
+      if (resourcesRes.status === 'fulfilled' && resourcesRes.value.ok) {
+        resources = await resourcesRes.value.json();
+        renderResources();
       }
 
-      if (requestedVersion !== eventsVersion) return;
+      if (revision !== before) return;
 
-      if (eventsResult.status === 'fulfilled') {
-        receiveIncidents(eventsResult.value);
+      if (eventsRes.status === 'fulfilled' && eventsRes.value.ok) {
+        const events = await eventsRes.value.json();
+        receiveEvents(events);
       } else {
         get('list-message').textContent = 'Could not load incidents. Check the project server.';
       }
     }
 
-    updateForm.addEventListener('submit', async event => {
+    form.addEventListener('submit', async event => {
       event.preventDefault();
+      if (saving) return;
       const id = selectedId;
       if (!id) return;
 
-      const fields = new FormData(updateForm);
-      const button = updateForm.querySelector('[type="submit"]');
-      const feedback = get('update-feedback');
-      button.disabled = true;
-      feedback.textContent = 'Saving…';
+      const authorName = get('coordinator-name').value.trim();
+      if (!authorName) {
+        feedback.textContent = 'Enter your name before sharing an update.';
+        get('coordinator-name').focus();
+        return;
+      }
+
+      const payload = {
+        author: authorName,
+        department: 'Multi-Agency Coordination'
+      };
+
+      let hasChanges = false;
+      for (const field of editableFields) {
+        const value = field === 'actionRequired'
+          ? form.elements[field].value.trim()
+          : form.elements[field].value;
+
+        if (value !== formBaseline[field]) {
+          payload[field] = value;
+          hasChanges = true;
+        }
+      }
+
+      const note = form.elements.note.value.trim();
+      if (note) {
+        payload.updateText = note;
+        hasChanges = true;
+      }
+
+      if (!hasChanges) {
+        feedback.textContent = 'Make a change or enter a progress update.';
+        return;
+      }
+
+      const controls = Array.from(form.elements);
+      saving = true;
+      controls.forEach(c => { c.disabled = true; });
+      feedback.textContent = 'Sharing update…';
 
       try {
         const response = await fetch(`/api/events/${encodeURIComponent(id)}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            status: fields.get('status'),
-            updateText: fields.get('note').trim(),
-            author: 'Evacuation Coordinator',
-            department: 'Multi-Agency'
-          })
+          body: JSON.stringify(payload)
         });
 
-        if (!response.ok) throw new Error('Update rejected');
-        const saved = await response.json();
-
-        receiveIncidents(incidents.map(item => item.id === id ? saved : item));
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Update rejected.');
 
         if (selectedId === id) {
-          updateForm.elements.note.value = '';
-          feedback.textContent = 'Update saved.';
+          fillUpdateForm(result);
+          feedback.textContent = 'Update shared successfully.';
         }
-      } catch {
-        if (selectedId === id) feedback.textContent = 'Could not confirm the update.';
+
+        await loadOverview();
+      } catch (error) {
+        feedback.textContent = `Could not confirm the update. ${error.message}`;
       } finally {
-        button.disabled = false;
+        saving = false;
+        controls.forEach(c => { c.disabled = false; });
       }
     });
 
@@ -409,10 +1102,20 @@
 
       socket.on('init_state', state => {
         resources = state.resources || [];
-        receiveIncidents(state.events || []);
+        renderResources();
+        receiveEvents(state.events || []);
       });
 
-      socket.on('timeline_updated', receiveIncidents);
+      socket.on('timeline_updated', receiveEvents);
+
+      socket.on('resources_updated', updatedResources => {
+        resources = updatedResources || [];
+        if (selectedResourceId && !resources.some(r => r.id === selectedResourceId)) {
+          selectedResourceId = null;
+          editResourcePanel.hidden = true;
+        }
+        renderResources();
+      });
 
       socket.on('disconnect', () => {
         get('connection').textContent = 'Live updates disconnected';

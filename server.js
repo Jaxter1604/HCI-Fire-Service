@@ -8,11 +8,9 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
     origin: "*",
-    methods: ["GET", "POST", "PUT"]
+    methods: ["GET", "POST", "PUT", "DELETE"]
   }
 });
-
-
 
 app.use(cors());
 app.use(express.json());
@@ -141,12 +139,11 @@ app.put('/api/events/:id', (req, res) => {
     return res.status(404).json({ error: 'Event not found' });
   }
 
-  const { status,severity,actionRequired,updateText,author,department} = req.body;
+  const { status, severity, actionRequired, updateText, author, department } = req.body;
 
   const allowedStatuses = ['Active', 'Decision Pending', 'Resolved'];
   const allowedSeverities = ['Low', 'Moderate', 'High', 'Critical'];
 
-  // Validate everything before changing the event.
   if (status !== undefined && !allowedStatuses.includes(status)) {
     return res.status(400).json({ error: 'Invalid incident status' });
   }
@@ -155,18 +152,12 @@ app.put('/api/events/:id', (req, res) => {
     return res.status(400).json({ error: 'Invalid severity' });
   }
 
-  if (actionRequired !== undefined &&
-    typeof actionRequired !== 'string'
-  ) {
-    return res.status(400).json({
-      error: 'Action required must be text'
-    });
+  if (actionRequired !== undefined && typeof actionRequired !== 'string') {
+    return res.status(400).json({ error: 'Action required must be text' });
   }
 
   if (updateText !== undefined && typeof updateText !== 'string') {
-    return res.status(400).json({
-      error: 'Progress update must be text'
-    });
+    return res.status(400).json({ error: 'Progress update must be text' });
   }
 
   const changes = [];
@@ -190,7 +181,6 @@ app.put('/api/events/:id', (req, res) => {
         `Action required: ${previousAction || 'Not specified'} → ` +
         `${nextAction || 'Not specified'}`
       );
-
       event.actionRequired = nextAction;
     }
   }
@@ -202,9 +192,7 @@ app.put('/api/events/:id', (req, res) => {
   }
 
   if (!changes.length) {
-    return res.status(400).json({
-      error: 'No changes or progress update provided.'
-    });
+    return res.status(400).json({ error: 'No changes or progress update provided.' });
   }
 
   const timestamp = new Date().toISOString();
@@ -225,13 +213,79 @@ app.put('/api/events/:id', (req, res) => {
   res.json(event);
 });
 
-
 app.get('/api/sectors', (req, res) => {
   res.json(db.sectors);
 });
 
+// Resources CRUD
 app.get('/api/resources', (req, res) => {
   res.json(db.resources);
+});
+
+app.post('/api/resources', (req, res) => {
+  const { name, department, lat, lng, status } = req.body;
+  const parsedLat = parseFloat(lat);
+  const parsedLng = parseFloat(lng);
+
+  if (!name || !department || !Number.isFinite(parsedLat) || !Number.isFinite(parsedLng)) {
+    return res.status(400).json({ error: 'Missing required fields: name, department, lat, lng' });
+  }
+
+  const newResource = {
+    id: `res-${Date.now().toString().slice(-4)}`,
+    name: name.trim(),
+    department: department.trim(),
+    lat: parsedLat,
+    lng: parsedLng,
+    status: (status || 'Active').trim()
+  };
+
+  db.resources.push(newResource);
+  io.emit('resources_updated', db.resources);
+  res.status(201).json(newResource);
+});
+
+app.put('/api/resources/:id', (req, res) => {
+  const resource = db.resources.find(r => r.id === req.params.id);
+  if (!resource) {
+    return res.status(404).json({ error: 'Resource not found' });
+  }
+
+  const { name, department, lat, lng, status } = req.body;
+
+  if (name !== undefined && name.trim()) resource.name = name.trim();
+  if (department !== undefined && department.trim()) resource.department = department.trim();
+  if (status !== undefined && status.trim()) resource.status = status.trim();
+
+  if (lat !== undefined) {
+    const parsedLat = parseFloat(lat);
+    if (!Number.isFinite(parsedLat) || parsedLat < -90 || parsedLat > 90) {
+      return res.status(400).json({ error: 'Invalid latitude' });
+    }
+    resource.lat = parsedLat;
+  }
+
+  if (lng !== undefined) {
+    const parsedLng = parseFloat(lng);
+    if (!Number.isFinite(parsedLng) || parsedLng < -180 || parsedLng > 180) {
+      return res.status(400).json({ error: 'Invalid longitude' });
+    }
+    resource.lng = parsedLng;
+  }
+
+  io.emit('resources_updated', db.resources);
+  res.json(resource);
+});
+
+app.delete('/api/resources/:id', (req, res) => {
+  const index = db.resources.findIndex(r => r.id === req.params.id);
+  if (index === -1) {
+    return res.status(404).json({ error: 'Resource not found' });
+  }
+
+  const [removed] = db.resources.splice(index, 1);
+  io.emit('resources_updated', db.resources);
+  res.json(removed);
 });
 
 app.get('/api/weather', (req, res) => {

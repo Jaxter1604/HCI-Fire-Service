@@ -21,6 +21,30 @@
       padding: 12px 12px 32px;
     }
 
+    nav.page-nav {
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+    }
+
+    nav.page-nav a.back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 44px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      padding: 9px 14px;
+      background: white;
+      color: #111827;
+      font-weight: 650;
+      text-decoration: none;
+    }
+
+    nav.page-nav a.back-link:hover {
+      background: #f9fafb;
+    }
+
     header, section {
       padding: 16px;
       border: 1px solid #e5e7eb;
@@ -37,9 +61,9 @@
     .muted { color: #4b5563; font-size: .875rem; }
     .stack { display: grid; gap: 10px; }
 
-    a, button, textarea { font: inherit; }
+    button, textarea { font: inherit; }
 
-    a, button {
+    button {
       min-height: 44px;
       border: 1px solid #d1d5db;
       border-radius: 8px;
@@ -47,15 +71,22 @@
       background: white;
       color: #111827;
       font-weight: 650;
+      cursor: pointer;
     }
 
-    a {
+    section > a {
       display: inline-flex;
       align-items: center;
+      min-height: 44px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      padding: 9px 12px;
+      background: white;
+      color: #111827;
+      font-weight: 650;
       text-decoration: none;
     }
 
-    button { cursor: pointer; }
     button:disabled { opacity: .65; cursor: wait; }
 
     .card {
@@ -159,7 +190,6 @@
         grid-template-columns: 1fr;
       }
     }
-
   </style>
   <link
     rel="stylesheet"
@@ -169,6 +199,10 @@
 
 <body>
   <main>
+    <nav class="page-nav" aria-label="Primary navigation">
+      <a href="./index.html" class="back-link" aria-label="Back to shared map">← Back to map</a>
+    </nav>
+
     <header>
       <h1>Fire Responder</h1>
       <p>Wildfire visitor evacuation</p>
@@ -388,13 +422,12 @@
         const input = form.elements[field];
         const latestValue = incidentFieldValue(event, field);
 
-      // Update only fields the user has not changed.
-      if (input.value === formBaseline[field]) {
-        input.value = latestValue;
-        formBaseline[field] = latestValue;
+        if (input.value === formBaseline[field]) {
+          input.value = latestValue;
+          formBaseline[field] = latestValue;
+        }
       }
     }
-  }
 
     function appendText(parent, tag, value, className = '') {
       const element = document.createElement(tag);
@@ -431,8 +464,8 @@
         };
         
         const colour = event.status === 'Resolved'
-        ? '#2563eb'
-        : severityColours[event.severity] || '#6b7280';
+          ? '#2563eb'
+          : severityColours[event.severity] || '#6b7280';
         
         button.style.setProperty('--incident-colour', colour);
         button.dataset.eventId = event.id;
@@ -521,7 +554,7 @@
       if (!id) return;
       
       const authorName =
-      document.getElementById('responder-name').value.trim();
+        document.getElementById('responder-name').value.trim();
       
       if (!authorName) {
         feedback.textContent = 'Enter your name before sharing an update.';
@@ -538,8 +571,8 @@
       
       for (const field of editableFields) {
         const value = field === 'actionRequired'
-        ? form.elements[field].value.trim()
-        : form.elements[field].value;
+          ? form.elements[field].value.trim()
+          : form.elements[field].value;
         
         if (value !== formBaseline[field]) {
           payload[field] = value;
@@ -593,7 +626,7 @@
         await loadIncidents();
       } catch (error) {
         feedback.textContent =
-        `Could not confirm the update. ${error.message}`;
+          `Could not confirm the update. ${error.message}`;
       } finally {
         saving = false;
         
@@ -808,7 +841,6 @@
     });
 
     loadIncidents();
-
   </script>
 </body>
 </html>

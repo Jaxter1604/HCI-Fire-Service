@@ -112,7 +112,7 @@
       gap: 10px;
     }
 
-    /* Timeline Event Cards (SSEN Power Track / Wireframe Color Coding) */
+    /* Timeline Event Cards */
     .event-card {
       background: white;
       border-radius: 8px;
@@ -126,7 +126,7 @@
     .event-card.Moderate { border-left-color: #eab308; }
     .event-card.Low { border-left-color: #3b82f6; }
     .event-card.Pending { border-left-color: #eab308; background: #fefce8; }
-    .event-card.Resolved { border-left-color: blue}
+    .event-card.Resolved { border-left-color: blue; }
 
     .badge {
       display: inline-block;
@@ -141,7 +141,7 @@
     .badge.High { background: #f97316; color: white; }
     .badge.Moderate { background: #eab308; color: #111; }
     .badge.Low { background: #3b82f6; color: white; }
-    .badge.Resolved {background: blue; color: white; } 
+    .badge.Resolved { background: blue; color: white; } 
 
     /* Bottom Quick-Add FAB */
     .fab-add {
@@ -261,7 +261,7 @@
       height: 36px;
       transform: translate(-50%, -50%);
       z-index: 900;
-      pointer-events: none; /* Lets touches/drags pass straight through to the Leaflet map */
+      pointer-events: none;
     }
 
     .center-reticle::before,
@@ -272,7 +272,6 @@
       box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9);
     }
 
-    /* Horizontal line */
     .center-reticle::before {
       top: 50%;
       left: 0;
@@ -281,7 +280,6 @@
       transform: translateY(-50%);
     }
 
-    /* Vertical line */
     .center-reticle::after {
       left: 50%;
       top: 0;
@@ -318,8 +316,8 @@
       transform: translate(-50%, -50%);
     }
 
-/* Top Role Navigation Bar */
-.role-nav {
+    /* Top Role Navigation Bar */
+    .role-nav {
       background: rgba(17, 24, 39, 0.96);
       color: #ffffff;
       border-radius: 10px;
@@ -370,9 +368,9 @@
 
     <div class="hud-card filter-bar">
       <a id="back-to-role" hidden>←</a>
-      <select id="deptFilter" onchange="handleFilterChange()">
-        <option value="ALL">All Agencies (Global View)</option>
-        <option value="Scottish Fire and Rescue Service">Scottish Fire & Rescue Service</option>
+      <select id="deptFilter" onchange="handleRoleChange()">
+        <option value="ALL">All Agencies (Shared Prototype View)</option>
+        <option value="Scottish Fire and Rescue Service">Scottish Fire &amp; Rescue Service</option>
         <option value="National Park Rangers">National Park Rangers</option>
         <option value="Coordinator">Coordinator</option>
       </select>
@@ -411,10 +409,11 @@
           <select id="qaDept" required>
             <option value="Scottish Fire and Rescue Service">Scottish Fire and Rescue Service</option>
             <option value="National Park Rangers">National Park Rangers</option>
+            <option value="Multi-Agency Coordination">Multi-Agency Coordination</option>
           </select>
         </div>
         <div class="form-group">
-          <label>Your Name & Role</label>
+          <label>Your Name &amp; Role</label>
           <input type="text" id="qaAuthor" placeholder="e.g., Ranger Alex (Field Patrol)" required />
         </div>
         <div class="form-group">
@@ -457,14 +456,14 @@
     const socket = io();
 
     function syncRoleNav() {
-      const filter = document.getElementById('deptFilter').value;
+      const role = document.getElementById('deptFilter').value;
       const mapByRole = {
         'Scottish Fire and Rescue Service': 'nav-responder',
         'National Park Rangers': 'nav-ranger',
         'Coordinator': 'nav-coordinator'
       };
 
-      const activeId = mapByRole[filter] || null;
+      const activeId = mapByRole[role] || null;
       const nav = document.getElementById('roleNav');
       nav.hidden = !activeId;
 
@@ -474,7 +473,7 @@
       });
     }
 
-    function handleFilterChange() {
+    function handleRoleChange() {
       syncRoleNav();
       renderAll();
     }
@@ -500,6 +499,11 @@
       renderAll();
     });
 
+    socket.on('resources_updated', (resources) => {
+      appState.resources = resources;
+      renderAll();
+    });
+
     function renderWeather() {
       const w = appState.weather;
       if (!w || !w.warning) return;
@@ -518,16 +522,15 @@
     }
 
     function renderAll() {
-      const filter = document.getElementById('deptFilter').value;
-      const filteredEvents = (filter === 'ALL' || filter === 'Coordinator')
-        ? appState.events
-        : appState.events.filter(e => e.department === filter);
+      // Every department/role sees all events and all resources in this prototype
+      const allEvents = appState.events || [];
+      const allResources = appState.resources || [];
 
-      document.getElementById('eventCount').innerText = filteredEvents.length;
+      document.getElementById('eventCount').innerText = allEvents.length;
       markersLayer.clearLayers();
 
-      // Plot Event Pins
-      filteredEvents.forEach(evt => {
+      // Plot All Event Pins
+      allEvents.forEach(evt => {
         const color = getPinColor(evt.severity, evt.status);
         const icon = L.divIcon({
           className: '',
@@ -536,25 +539,24 @@
           iconAnchor: [11, 11]
         });
 
-        const marker = L.marker([evt.location.lat, evt.location.lng], { icon })
+        L.marker([evt.location.lat, evt.location.lng], { icon })
           .addTo(markersLayer)
           .on('click', () => openEventDetails(evt.id));
       });
 
-      // Plot Deployed Resources
-      (appState.resources || []).forEach(res => {
-        if (filter !== 'ALL' && filter !== 'Coordinator' && res.department !== filter) return;
+      // Plot All Deployed Resources
+      allResources.forEach(res => {
         const icon = L.divIcon({
           className: 'resource-pin',
-          html: `🚒 ${res.name}`,
+          html: `🚒 ${res.name} (${res.status})`,
           iconSize: null
         });
         L.marker([res.lat, res.lng], { icon }).addTo(markersLayer);
       });
 
-      // Render Timeline Cards
+      // Render Timeline Cards with department assignment metadata preserved
       const listEl = document.getElementById('timelineList');
-      listEl.innerHTML = filteredEvents.map(evt => {
+      listEl.innerHTML = allEvents.map(evt => {
         const timeStr = new Date(evt.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         return `
           <div class="event-card ${evt.severity}" onclick="openEventDetails('${evt.id}')">
@@ -562,7 +564,7 @@
             <h4 style="margin:4px 0;color:#111827;">${evt.title}</h4>
             <p style="font-size:0.8rem;color:#4b5563;">📍 ${evt.location.name} (${evt.location.sector})</p>
             <p style="font-size:0.75rem;color:#6b7280;margin-top:6px;">
-              <strong>${evt.department}</strong> • ${evt.authorName} • ${timeStr}
+              <strong>Assigned: ${evt.department}</strong> • ${evt.authorName} • ${timeStr}
             </p>
           </div>
         `;
@@ -587,11 +589,11 @@
         <div style="font-size:0.8rem;color:#4b5563;background:#f9fafb;padding:10px;border-radius:8px;margin-bottom:12px;">
           <div><strong>Location:</strong> ${evt.location.name} (${evt.location.sector})</div>
           <div><strong>Reported by:</strong> ${evt.authorName} (${evt.authorRole})</div>
-          <div><strong>Agency:</strong> ${evt.department}</div>
+          <div><strong>Assigned Department:</strong> ${evt.department}</div>
           <div><strong>Time:</strong> ${new Date(evt.timestamp).toLocaleString()}</div>
         </div>
 
-        <h4>Coordination & Audit Log</h4>
+        <h4>Coordination &amp; Audit Log</h4>
         <div style="max-height:150px;overflow-y:auto;margin-bottom:12px;">
           ${updatesHtml || '<p style="font-size:0.8rem;color:#9ca3af;">No updates logged yet.</p>'}
         </div>
@@ -646,11 +648,16 @@
 
     async function submitEventUpdate(e, id) {
       e.preventDefault();
+      const selectedRole = document.getElementById('deptFilter').value;
+      const departmentLabel = selectedRole === 'ALL'
+        ? 'Multi-Agency'
+        : (selectedRole === 'Coordinator' ? 'Multi-Agency Coordination' : selectedRole);
+
       const payload = {
         status: document.getElementById('updStatus').value,
         updateText: document.getElementById('updText').value,
         author: 'Field Operator',
-        department: document.getElementById('deptFilter').value === 'ALL' ? 'Multi-Agency' : document.getElementById('deptFilter').value
+        department: departmentLabel
       };
 
       await fetch(`/api/events/${id}`, {
@@ -667,6 +674,13 @@
     }
 
     function openQuickAdd() {
+      const selectedRole = document.getElementById('deptFilter').value;
+      const qaDept = document.getElementById('qaDept');
+      if (selectedRole === 'Coordinator') {
+        qaDept.value = 'Multi-Agency Coordination';
+      } else if (selectedRole !== 'ALL') {
+        qaDept.value = selectedRole;
+      }
       document.getElementById('quickAddModal').classList.add('active');
     }
 
@@ -679,8 +693,6 @@
       document.querySelectorAll('.radio-btn').forEach(b => b.classList.remove('selected'));
       el.classList.add('selected');
     }
-
-    
   </script>
   <script>
     const mapSource = new URLSearchParams(location.search).get('from');
@@ -697,6 +709,6 @@
       backToRole.title = label;
       backToRole.hidden = false;
     }
-</script>
+  </script>
 </body>
 </html>

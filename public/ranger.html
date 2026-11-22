@@ -73,6 +73,30 @@
       padding: 16px 16px 32px;
     }
 
+    nav.page-nav {
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+    }
+
+    nav.page-nav a.back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 44px;
+      padding: 9px 14px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--ink);
+      font-weight: 650;
+      text-decoration: none;
+    }
+
+    nav.page-nav a.back-link:hover {
+      background: #f9fafb;
+    }
+
     header {
       padding: 18px 20px;
       border-radius: 12px;
@@ -213,12 +237,15 @@
     #reports li {
       white-space: pre-line;
     }
-
   </style>
 </head>
 
 <body>
   <main>
+    <nav class="page-nav" aria-label="Primary navigation">
+      <a href="./index.html" class="back-link" aria-label="Back to shared map">← Back to map</a>
+    </nav>
+
     <header>
       <h1>Park Ranger</h1>
       Wildfire visitor evacuation
@@ -528,7 +555,6 @@
       sharedMapStatus.textContent =
         `${points.length} incident${points.length === 1 ? '' : 's'} shown.`;
 
-      // Only fit once, so live updates do not interrupt map exploration.
       if (points.length && !sharedMapFitted) {
         sharedMap.fitBounds(points, {
           padding: [25, 25],
@@ -604,7 +630,6 @@
         renderSharedMap(events);
 
         const trackedEvents = events.filter(event => trackedIds.includes(event.id));
-        // Reuse existing forms so live updates preserve drafts and open state.
         const existingForms = new Map();
         
         for (const card of reports.children) {
@@ -650,93 +675,93 @@
           if (existingForm) {
             card.append(existingForm);
           } else {
-          const moreInfo = document.createElement('details');
-          const summary = document.createElement('summary');
-          summary.textContent = 'Add information / correction';
-          moreInfo.append(summary);
-          
-          const updateForm = document.createElement('form');
-          
-          const nameLabel = document.createElement('label');
-          nameLabel.textContent = 'Your name';
-          
-          const nameInput = document.createElement('input');
-          nameInput.type = 'text';
-          nameInput.required = true;
-          nameInput.value = event.authorName || '';
-          nameLabel.append(nameInput);
-          
-          const noteLabel = document.createElement('label');
-          noteLabel.textContent = 'Additional information or correction';
-          
-          const noteInput = document.createElement('textarea');
-          noteInput.rows = 3;
-          noteInput.required = true;
-          noteInput.placeholder ='e.g. Two additional visitors have arrived at the reported location.';
-          noteLabel.append(noteInput);
-          
-          const updateButton = document.createElement('button');
-          updateButton.type = 'submit';
-          updateButton.textContent = 'Share information';
-          
-          const updateFeedback = document.createElement('p');
-          updateFeedback.setAttribute('role', 'status');
-          
-          updateForm.append(
-            nameLabel,
-            noteLabel,
-            updateButton,
-            updateFeedback
-          );
-          
-          updateForm.addEventListener('submit', async submission => {      
-            submission.preventDefault();
+            const moreInfo = document.createElement('details');
+            const summary = document.createElement('summary');
+            summary.textContent = 'Add information / correction';
+            moreInfo.append(summary);
+            
+            const updateForm = document.createElement('form');
+            
+            const nameLabel = document.createElement('label');
+            nameLabel.textContent = 'Your name';
+            
+            const nameInput = document.createElement('input');
+            nameInput.type = 'text';
+            nameInput.required = true;
+            nameInput.value = event.authorName || '';
+            nameLabel.append(nameInput);
+            
+            const noteLabel = document.createElement('label');
+            noteLabel.textContent = 'Additional information or correction';
+            
+            const noteInput = document.createElement('textarea');
+            noteInput.rows = 3;
+            noteInput.required = true;
+            noteInput.placeholder = 'e.g. Two additional visitors have arrived at the reported location.';
+            noteLabel.append(noteInput);
+            
+            const updateButton = document.createElement('button');
+            updateButton.type = 'submit';
+            updateButton.textContent = 'Share information';
+            
+            const updateFeedback = document.createElement('p');
+            updateFeedback.setAttribute('role', 'status');
+            
+            updateForm.append(
+              nameLabel,
+              noteLabel,
+              updateButton,
+              updateFeedback
+            );
+            
+            updateForm.addEventListener('submit', async submission => {      
+              submission.preventDefault();
 
-            const author = nameInput.value.trim();
-            const note = noteInput.value.trim();
-            
-            if (!author || !note) {
-              updateFeedback.textContent = 'Enter your name and an update.';
-              return;
-            }
-            
-            updateButton.disabled = true;
-            updateFeedback.textContent = 'Sharing information…';
-            
-            try {
-              const response = await fetch(
-                `/api/events/${encodeURIComponent(event.id)}`,
-              {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  updateText: note,
-                  author,
-                  department: 'National Park Rangers'
-              })
-            }
-          );
-          
-          if (!response.ok) {
-            throw new Error('Update rejected.');
+              const author = nameInput.value.trim();
+              const note = noteInput.value.trim();
+              
+              if (!author || !note) {
+                updateFeedback.textContent = 'Enter your name and an update.';
+                return;
+              }
+              
+              updateButton.disabled = true;
+              updateFeedback.textContent = 'Sharing information…';
+              
+              try {
+                const response = await fetch(
+                  `/api/events/${encodeURIComponent(event.id)}`,
+                  {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      updateText: note,
+                      author,
+                      department: 'National Park Rangers'
+                    })
+                  }
+                );
+                
+                if (!response.ok) {
+                  throw new Error('Update rejected.');
+                }
+                noteInput.value = '';
+                moreInfo.open = false;
+                
+                feedback.textContent = `Information shared · ${event.id}`;
+                await refreshReports();
+              } catch {
+                updateFeedback.textContent =
+                  'Could not confirm the update. Check the connection before retrying.';
+              } finally {
+                updateButton.disabled = false;
+              }
+            });
+            moreInfo.append(updateForm);
+            card.append(moreInfo);
           }
-          noteInput.value = '';
-          moreInfo.open = false;
-          
-          feedback.textContent = `Information shared · ${event.id}`;
-          await refreshReports();
-          } catch {
-            updateFeedback.textContent =
-            'Could not confirm the update. Check the connection before retrying.';
-          } finally {
-            updateButton.disabled = false;
-          }
-        });
-        moreInfo.append(updateForm);
-        card.append(moreInfo);
-      }
 
-        reports.append(card);
+          reports.append(card);
         }
       } catch {
         if (request === requestNumber) {
@@ -745,92 +770,3 @@
         }
       }
     }
-
-    form.addEventListener('submit', async event => {
-      event.preventDefault();
-
-      const fields = new FormData(form);
-      const incidentTitle = fields.get('incidentTitle').trim();
-      const authorName = fields.get('authorName').trim();
-      const locationName = fields.get('locationName').trim();
-      const selectedAssistance = fields.get('assistance');
-      
-      const assistance = selectedAssistance === 'Other'
-      ? (fields.get('otherAssistance') || '').trim()
-      : selectedAssistance;
-
-      if (!incidentTitle || !authorName || !locationName || !assistance) {
-        feedback.textContent =
-          'Enter an incident title, your name, the location and the assistance needed.';
-        return;
-      }
-      const latValue = fields.get('lat');
-      const lngValue = fields.get('lng');
-      
-      if (
-        !latValue ||
-        !lngValue ||
-        !validCoordinates(Number(latValue), Number(lngValue))
-      ) {
-        feedback.textContent = 'Select a valid incident location on the map.';
-        return;
-      } 
-      submit.disabled = true;
-      feedback.textContent = 'Submitting report…';
-
-      try {
-        const response = await fetch('/api/events', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: incidentTitle,
-            description: `Visitors: ${fields.get('visitors')}. ` +
-              `Injuries: ${fields.get('injuries')}. Assistance: ${assistance}.`,
-            locationName,
-            lat: Number(fields.get('lat')),
-            lng: Number(fields.get('lng')),
-            severity: fields.get('severity'),
-            department: 'National Park Rangers',
-            authorName,
-            authorRole: 'Park Ranger'
-          })
-        });
-
-        if (!response.ok) throw new Error('The server rejected the report.');
-
-        const saved = await response.json();
-        trackedIds.push(saved.id);
-
-        try {
-          localStorage.setItem(trackingKey, JSON.stringify(trackedIds));
-        } catch {
-          // The new report remains available in this tab.
-        }
-
-        feedback.textContent = `Report submitted · ${saved.id}`;
-        form.reset();
-        updateAssistanceField();
-        if (selectedMarker && locationMap) {
-          locationMap.removeLayer(selectedMarker);
-          selectedMarker = null;
-        }
-        selectedLocation.textContent = 'No location selected.';
-        form.elements.authorName.value = authorName;
-        await refreshReports();
-      } catch {
-        feedback.textContent = 'Could not confirm submission. Check the server before trying again.';
-      } finally {
-        submit.disabled = false;
-      }
-    });
-
-    if (typeof io === 'function') {
-      const socket = io();
-      socket.on('connect', refreshReports);
-      socket.on('timeline_updated', refreshReports);
-    }
-
-    refreshReports();
-  </script>
-</body>
-</html>
