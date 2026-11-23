@@ -3,7 +3,7 @@
 # See https://docs.fly.io/reference/configuration for information about how to use this file.
 #
 
-app = 'hci-fire-service'
+app = 'hci-fire-service-autumn-violet-3505'
 primary_region = 'lhr'
 
 [build]
