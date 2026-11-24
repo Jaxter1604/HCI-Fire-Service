@@ -1,9 +1,9 @@
-# fly.toml app configuration file generated for hci-fire-service-autumn-violet-3505 on 2026-11-17T10:03:17Z
+# fly.toml app configuration file generated for hci-fire-service-cold-marsh-3657 on 2026-11-24T09:16:38Z
 #
 # See https://docs.fly.io/reference/configuration for information about how to use this file.
 #
 
-app = 'hci-fire-service-autumn-violet-3505'
+app = 'hci-fire-service-cold-marsh-3657'
 primary_region = 'lhr'
 
 [build]
