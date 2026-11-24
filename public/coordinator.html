@@ -524,6 +524,19 @@
 
       <p id="feedback" class="muted" role="status"></p>
     </section>
+
+    <!-- 4. Reset Database -->
+    <section aria-labelledby="reset-heading" class="stack">
+      <h2 id="reset-heading">Reset scenario data</h2>
+      <p class="muted">
+        Restore all incidents, updates, and deployed resources back to the initial scenario state for all connected users.
+      </p>
+      <button type="button" id="reset-db-btn" class="danger-outline">
+        Reset database
+      </button>
+      <p id="reset-feedback" class="muted" role="status"></p>
+    </section>
+
   </main>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -1129,6 +1142,47 @@
     }
 
     loadOverview();
+
+    const resetDbBtn = get('reset-db-btn');
+    const resetFeedback = get('reset-feedback');
+    let resettingDb = false;
+
+    resetDbBtn.addEventListener('click', async () => {
+      if (resettingDb) return;
+
+      const confirmed = window.confirm(
+        'Reset all incidents, activity logs, and resources back to initial scenario data?'
+      );
+      if (!confirmed) return;
+
+      resettingDb = true;
+      resetDbBtn.disabled = true;
+      resetFeedback.textContent = 'Resetting database…';
+
+      try {
+        const response = await fetch('/api/reset', {
+          method: 'POST'
+        });
+
+        if (!response.ok) {
+          throw new Error('Server rejected reset request.');
+        }
+
+        selectedId = null;
+        selectedResourceId = null;
+        editResourcePanel.hidden = true;
+        get('details').hidden = true;
+        feedback.textContent = '';
+
+        await loadOverview();
+        resetFeedback.textContent = 'Database reset to initial scenario data.';
+      } catch (error) {
+        resetFeedback.textContent = `Could not reset database. ${error.message}`;
+      } finally {
+        resettingDb = false;
+        resetDbBtn.disabled = false;
+      }
+    });
   </script>
 </body>
 </html>
